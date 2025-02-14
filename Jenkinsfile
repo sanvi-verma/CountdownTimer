@@ -21,10 +21,13 @@ pipeline {
         }
 
         stage('Install Dependencies') {
-            steps {
-                sh 'npm install' // Use `bat 'npm install'` for Windows
-            }
+    steps {
+        dir('CountdownTimer') { // Change this if your repo has a subfolder
+            sh 'npm install'
         }
+    }
+}
+
 
         stage('Build') {
             steps {
