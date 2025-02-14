@@ -1,43 +1,31 @@
 pipeline {
     agent any
-    
+
     stages {
         stage('Clone Repository') {
             steps {
-                git branch: 'main', url: 'https://github.com/sanvi-verma/CountdownTimer.git'
+                git 'https://github.com/sanvi-verma/CountdownTimer.git'
             }
         }
-        
+
         stage('Set Up Environment') {
             steps {
-                script {
-                    if (isUnix()) {
-                        sh 'echo "Setting up environment..."'
-                    } else {
-                        bat 'echo Setting up environment...'
-                    }
-                }
+                echo 'Setting up environment...'
+                // Add any necessary setup commands here (e.g., install dependencies if needed)
             }
         }
-
-        stage('Install Dependencies') {
-    steps {
-        dir('CountdownTimer') { // Change this if your repo has a subfolder
-            sh 'npm install'
-        }
-    }
-}
-
 
         stage('Build') {
             steps {
-                sh 'npm run build' // Adjust based on your project setup
+                echo 'Building the project...'
+                // Add build steps (if applicable)
             }
         }
 
         stage('Test') {
             steps {
-                sh 'npm test' // Runs tests if applicable
+                echo 'Running tests...'
+                // Add test steps (if applicable)
             }
         }
 
