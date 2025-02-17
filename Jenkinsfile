@@ -94,7 +94,7 @@ def logStep(stepName, Closure body) {
 
 
 def writeLogToFile(def logEntry) {
-    def logFile = new File(env.WORKSPACE, env.LOG_FILE)
+    def logFile = "${env.WORKSPACE}/${env.LOG_FILE}"
     def logs = []
 
     if (logFile.exists()) {
