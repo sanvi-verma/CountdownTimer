@@ -3,9 +3,6 @@ pipeline {
     environment {
         LOG_FILE = 'build_logs.json'  
     }
-    tools{
-        git 'git'
-    }
     stages {
         stage('Clone Repository') {
             steps {
