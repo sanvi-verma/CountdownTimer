@@ -65,6 +65,7 @@ pipeline {
     }
 }
 
+// Function to log step details
 def logStep(stepName, Closure body) {
     def startTime = System.currentTimeMillis()
     def status = 'SUCCESS'
@@ -92,15 +93,15 @@ def logStep(stepName, Closure body) {
     }
 }
 
-
+// Function to write logs to a JSON file using pipeline-safe methods
 def writeLogToFile(def logEntry) {
     def logFile = "${env.WORKSPACE}/${env.LOG_FILE}"
-    def logs = []
 
-    if (logFile.exists()) {
-        logs = readJSON file: env.LOG_FILE
+    def logs = []
+    if (fileExists(logFile)) {
+        logs = readJSON file: logFile
     }
-    
+
     logs << logEntry
-    writeJSON file: env.LOG_FILE, json: logs
+    writeJSON file: logFile, json: logs
 }
