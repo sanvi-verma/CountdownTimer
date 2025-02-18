@@ -2,6 +2,8 @@ pipeline {
     agent any
     environment {
         LOG_FILE = 'build_logs.json'  
+        BUILD_NUMBER = "${currentBuild.number}"  // Captures build number
+        BUILD_START_TIME = "${new Date(currentBuild.getStartTimeInMillis()).format('yyyy-MM-dd HH:mm:ss')}"
     }
     stages {
         stage('Clone Repository') {
@@ -56,11 +58,17 @@ pipeline {
     }
 
     post {
-        success {
-            echo '✅ Pipeline executed successfully!'
-        }
-        failure {
-            echo '❌ Pipeline failed!'
+        always {
+            script {
+                def metadata = [
+                    buildNumber  : env.BUILD_NUMBER,
+                    jenkinsUser  : env.BUILD_USER_ID ?: 'Unknown User',
+                    startTime    : env.BUILD_START_TIME,
+                    endTime      : new Date().format("yyyy-MM-dd HH:mm:ss"),
+                    totalDuration: System.currentTimeMillis() - currentBuild.getStartTimeInMillis()
+                ]
+                updateLogFile(metadata)
+            }
         }
     }
 }
@@ -69,7 +77,6 @@ def logStep(stepName, Closure body) {
     def startTime = System.currentTimeMillis()
     def status = 'SUCCESS'
     def errorMsg = ''
-
     try {
         body()
     } catch (Exception e) {
@@ -77,28 +84,19 @@ def logStep(stepName, Closure body) {
         errorMsg = e.getMessage()
         throw e
     } finally {
-        def endTime = System.currentTimeMillis()
-        def duration = endTime - startTime
-
-        def logEntry = [
+        updateLogFile([
             stepName  : stepName,
             status    : status,
-            durationMs: duration,
+            durationMs: System.currentTimeMillis() - startTime,
             timestamp : new Date().format("yyyy-MM-dd HH:mm:ss"),
             error     : errorMsg
-        ]
-
-        writeLogToFile(logEntry)
+        ])
     }
 }
-def writeLogToFile(def logEntry) {
+
+def updateLogFile(def logEntry) {
     def logFile = "${env.WORKSPACE}/${env.LOG_FILE}"
-
-    def logs = []
-    if (fileExists(logFile)) {
-        logs = readJSON file: logFile
-    }
-
+    def logs = fileExists(logFile) ? readJSON(file: logFile) : []
     logs << logEntry
     writeJSON file: logFile, json: logs
 }
