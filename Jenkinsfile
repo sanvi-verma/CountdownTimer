@@ -1,16 +1,27 @@
 pipeline {
     agent any
+
     environment {
-        LOG_FILE = 'build_logs.json'  
-        BUILD_NUMBER = "${currentBuild.number}"  // Captures build number
-        BUILD_START_TIME = "${new Date(currentBuild.getStartTimeInMillis()).format('yyyy-MM-dd HH:mm:ss')}"
+        LOG_FILE = 'build_logs.json'
     }
+
     stages {
+        stage('Start Build') {
+            steps {
+                script {
+                    def startTime = new Date().format("yyyy-MM-dd HH:mm:ss")
+                    env.START_TIME = startTime
+                    echo "Build started at ${startTime}"
+                }
+            }
+        }
+
         stage('Clone Repository') {
             steps {
                 script {
-                    logStep('Clone Repository') {
-                        git branch: 'main', url: 'https://github.com/sanvi-verma/CountdownTimer.git'
+                    logStep("Clone Repository") {
+                        // Your clone repository command here
+                        echo "Cloning repository..."
                     }
                 }
             }
@@ -19,8 +30,9 @@ pipeline {
         stage('Set Up Environment') {
             steps {
                 script {
-                    logStep('Set Up Environment') {
-                        echo 'Setting up environment...'
+                    logStep("Set Up Environment") {
+                        // Your setup environment command here
+                        echo "Setting up environment..."
                     }
                 }
             }
@@ -29,8 +41,9 @@ pipeline {
         stage('Build') {
             steps {
                 script {
-                    logStep('Build') {
-                        echo 'Building the project...'
+                    logStep("Build") {
+                        // Your build command here
+                        echo "Building..."
                     }
                 }
             }
@@ -39,8 +52,9 @@ pipeline {
         stage('Test') {
             steps {
                 script {
-                    logStep('Test') {
-                        echo 'Running tests...'
+                    logStep("Test") {
+                        // Your test command here
+                        echo "Running tests..."
                     }
                 }
             }
@@ -49,8 +63,9 @@ pipeline {
         stage('Deploy') {
             steps {
                 script {
-                    logStep('Deploy') {
-                        echo 'Deploying the application...'
+                    logStep("Deploy") {
+                        // Your deploy command here
+                        echo "Deploying..."
                     }
                 }
             }
@@ -60,14 +75,26 @@ pipeline {
     post {
         always {
             script {
+                // Add build metadata to the log
+                def endTime = new Date().format("yyyy-MM-dd HH:mm:ss")
+                def duration = System.currentTimeMillis() - currentBuild.getStartTimeInMillis()
+
                 def metadata = [
-                    buildNumber  : env.BUILD_NUMBER,
-                    jenkinsUser  : env.BUILD_USER_ID ?: 'Unknown User',
-                    startTime    : env.BUILD_START_TIME,
-                    endTime      : new Date().format("yyyy-MM-dd HH:mm:ss"),
-                    totalDuration: System.currentTimeMillis() - currentBuild.getStartTimeInMillis()
+                    buildNumber: env.BUILD_NUMBER,
+                    jenkinsUser: env.BUILD_USER_ID ?: 'Unknown User',
+                    startTime: env.START_TIME,
+                    endTime: endTime,
+                    totalDuration: duration
                 ]
-                updateLogFile(metadata)
+
+                // Write metadata to the log file
+                def logFile = "${env.WORKSPACE}/${env.LOG_FILE}"
+                def logs = []
+                if (fileExists(logFile)) {
+                    logs = readJSON file: logFile
+                }
+                logs << metadata
+                writeJSON file: logFile, json: logs
             }
         }
     }
@@ -77,6 +104,7 @@ def logStep(stepName, Closure body) {
     def startTime = System.currentTimeMillis()
     def status = 'SUCCESS'
     def errorMsg = ''
+
     try {
         body()
     } catch (Exception e) {
@@ -84,19 +112,29 @@ def logStep(stepName, Closure body) {
         errorMsg = e.getMessage()
         throw e
     } finally {
-        updateLogFile([
+        def endTime = System.currentTimeMillis()
+        def duration = endTime - startTime
+        def timestamp = new Date().format("yyyy-MM-dd HH:mm:ss")
+
+        def logEntry = [
             stepName  : stepName,
             status    : status,
-            durationMs: System.currentTimeMillis() - startTime,
-            timestamp : new Date().format("yyyy-MM-dd HH:mm:ss"),
+            durationMs: duration,
+            timestamp : timestamp,
             error     : errorMsg
-        ])
+        ]
+
+        writeLogToFile(logEntry)
     }
 }
 
-def updateLogFile(def logEntry) {
+def writeLogToFile(def logEntry) {
     def logFile = "${env.WORKSPACE}/${env.LOG_FILE}"
-    def logs = fileExists(logFile) ? readJSON(file: logFile) : []
+    def logs = []
+    if (fileExists(logFile)) {
+        logs = readJSON file: logFile
+    }
+
     logs << logEntry
     writeJSON file: logFile, json: logs
 }
