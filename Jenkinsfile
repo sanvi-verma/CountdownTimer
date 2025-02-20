@@ -20,7 +20,6 @@ pipeline {
             steps {
                 script {
                     logStep("Clone Repository") {
-                        // Your clone repository command here
                         echo "Cloning repository..."
                     }
                 }
@@ -31,7 +30,6 @@ pipeline {
             steps {
                 script {
                     logStep("Set Up Environment") {
-                        // Your setup environment command here
                         echo "Setting up environment..."
                     }
                 }
@@ -42,7 +40,6 @@ pipeline {
             steps {
                 script {
                     logStep("Build") {
-                        // Your build command here
                         echo "Building..."
                     }
                 }
@@ -53,7 +50,6 @@ pipeline {
             steps {
                 script {
                     logStep("Test") {
-                        // Your test command here
                         echo "Running tests..."
                     }
                 }
@@ -64,7 +60,6 @@ pipeline {
             steps {
                 script {
                     logStep("Deploy") {
-                        // Your deploy command here
                         echo "Deploying..."
                     }
                 }
@@ -75,31 +70,48 @@ pipeline {
     post {
         always {
             script {
+                // Debug: Print workspace path
+                echo "Checking workspace: ${env.WORKSPACE}"
+                sh "ls -la ${env.WORKSPACE}"
+
+                def logFile = "${env.WORKSPACE}/${env.LOG_FILE}"
+
+                // Debug: Check if the log file exists
+                if (fileExists(logFile)) {
+                    echo "✅ build_logs.json exists!"
+                    sh "cat ${logFile}"
+                } else {
+                    echo "❌ build_logs.json NOT found! Creating an empty file..."
+                    writeJSON file: logFile, json: []
+                }
+
                 // Add build metadata to the log
                 def endTime = new Date().format("yyyy-MM-dd HH:mm:ss")
                 def duration = System.currentTimeMillis() - currentBuild.getStartTimeInMillis()
 
                 def metadata = [
-                    buildNumber: env.BUILD_NUMBER,
-                    jenkinsUser: env.BUILD_USER_ID ?: 'Unknown User',
-                    startTime: env.START_TIME,
-                    endTime: endTime,
+                    buildNumber  : env.BUILD_NUMBER,
+                    jenkinsUser  : env.BUILD_USER_ID ?: 'Unknown User',
+                    startTime    : env.START_TIME,
+                    endTime      : endTime,
                     totalDuration: duration
                 ]
 
-                // Write metadata to the log file
-                def logFile = "${env.WORKSPACE}/${env.LOG_FILE}"
+                // Append metadata to the log file
                 def logs = []
                 if (fileExists(logFile)) {
                     logs = readJSON file: logFile
                 }
                 logs << metadata
                 writeJSON file: logFile, json: logs
+
+                echo "📄 build_logs.json updated successfully!"
             }
         }
     }
 }
 
+// Function to log each step
 def logStep(stepName, Closure body) {
     def startTime = System.currentTimeMillis()
     def status = 'SUCCESS'
@@ -128,6 +140,7 @@ def logStep(stepName, Closure body) {
     }
 }
 
+// Function to write logs to file
 def writeLogToFile(def logEntry) {
     def logFile = "${env.WORKSPACE}/${env.LOG_FILE}"
     def logs = []
