@@ -4,7 +4,6 @@ pipeline {
     environment {
         DB_HOST = "host.docker.internal"
         DB_NAME = "jenkins_db"
-        DB_USER = "jenkins"
     }
 
     stages {
@@ -20,13 +19,11 @@ pipeline {
         stage('Clone Repository') {
             steps {
                 script {
-                    withCredentials([string(credentialsId: 'mysql-password', variable: 'DB_PASSWORD')]) {
-                        echo "Cloning repository..."
-                        sh """
-                        mysql --user=$DB_USER --password=$DB_PASSWORD --host=$DB_HOST --database=$DB_NAME --execute="
-                        INSERT INTO step_execution (job_name, build_number, step_name, status, start_time, end_time, duration, triggered_by, git_branch, node_name) 
-                        VALUES ('portfolio-pipeline', ${env.BUILD_NUMBER}, 'Clone Repository', 'SUCCESS', NOW(), NOW(), 0, 'Unknown User', 'origin/main', 'built-in')"
-                        """
+                    withCredentials([usernamePassword(credentialsId: 'mysql-credentials', usernameVariable: 'DB_USER', passwordVariable: 'DB_PASSWORD')]) {
+                        logStep("Clone Repository") {
+                            echo "Cloning repository..."
+                            saveStepToDB("Clone Repository", "SUCCESS")
+                        }
                     }
                 }
             }
@@ -35,13 +32,11 @@ pipeline {
         stage('Set Up Environment') {
             steps {
                 script {
-                    withCredentials([string(credentialsId: 'mysql-password', variable: 'DB_PASSWORD')]) {
-                        echo "Setting up environment..."
-                        sh """
-                        mysql --user=$DB_USER --password=$DB_PASSWORD --host=$DB_HOST --database=$DB_NAME --execute="
-                        INSERT INTO step_execution (job_name, build_number, step_name, status, start_time, end_time, duration, triggered_by, git_branch, node_name) 
-                        VALUES ('portfolio-pipeline', ${env.BUILD_NUMBER}, 'Set Up Environment', 'SUCCESS', NOW(), NOW(), 0, 'Unknown User', 'origin/main', 'built-in')"
-                        """
+                    withCredentials([usernamePassword(credentialsId: 'mysql-credentials', usernameVariable: 'DB_USER', passwordVariable: 'DB_PASSWORD')]) {
+                        logStep("Set Up Environment") {
+                            echo "Setting up environment..."
+                            saveStepToDB("Set Up Environment", "SUCCESS")
+                        }
                     }
                 }
             }
@@ -50,13 +45,11 @@ pipeline {
         stage('Build') {
             steps {
                 script {
-                    withCredentials([string(credentialsId: 'mysql-password', variable: 'DB_PASSWORD')]) {
-                        echo "Building..."
-                        sh """
-                        mysql --user=$DB_USER --password=$DB_PASSWORD --host=$DB_HOST --database=$DB_NAME --execute="
-                        INSERT INTO step_execution (job_name, build_number, step_name, status, start_time, end_time, duration, triggered_by, git_branch, node_name) 
-                        VALUES ('portfolio-pipeline', ${env.BUILD_NUMBER}, 'Build', 'SUCCESS', NOW(), NOW(), 0, 'Unknown User', 'origin/main', 'built-in')"
-                        """
+                    withCredentials([usernamePassword(credentialsId: 'mysql-credentials', usernameVariable: 'DB_USER', passwordVariable: 'DB_PASSWORD')]) {
+                        logStep("Build") {
+                            echo "Building..."
+                            saveStepToDB("Build", "SUCCESS")
+                        }
                     }
                 }
             }
@@ -65,13 +58,11 @@ pipeline {
         stage('Test') {
             steps {
                 script {
-                    withCredentials([string(credentialsId: 'mysql-password', variable: 'DB_PASSWORD')]) {
-                        echo "Running tests..."
-                        sh """
-                        mysql --user=$DB_USER --password=$DB_PASSWORD --host=$DB_HOST --database=$DB_NAME --execute="
-                        INSERT INTO step_execution (job_name, build_number, step_name, status, start_time, end_time, duration, triggered_by, git_branch, node_name) 
-                        VALUES ('portfolio-pipeline', ${env.BUILD_NUMBER}, 'Test', 'SUCCESS', NOW(), NOW(), 0, 'Unknown User', 'origin/main', 'built-in')"
-                        """
+                    withCredentials([usernamePassword(credentialsId: 'mysql-credentials', usernameVariable: 'DB_USER', passwordVariable: 'DB_PASSWORD')]) {
+                        logStep("Test") {
+                            echo "Running tests..."
+                            saveStepToDB("Test", "SUCCESS")
+                        }
                     }
                 }
             }
@@ -80,16 +71,74 @@ pipeline {
         stage('Deploy') {
             steps {
                 script {
-                    withCredentials([string(credentialsId: 'mysql-password', variable: 'DB_PASSWORD')]) {
-                        echo "Deploying..."
-                        sh """
-                        mysql --user=$DB_USER --password=$DB_PASSWORD --host=$DB_HOST --database=$DB_NAME --execute="
-                        INSERT INTO step_execution (job_name, build_number, step_name, status, start_time, end_time, duration, triggered_by, git_branch, node_name) 
-                        VALUES ('portfolio-pipeline', ${env.BUILD_NUMBER}, 'Deploy', 'SUCCESS', NOW(), NOW(), 0, 'Unknown User', 'origin/main', 'built-in')"
-                        """
+                    withCredentials([usernamePassword(credentialsId: 'mysql-credentials', usernameVariable: 'DB_USER', passwordVariable: 'DB_PASSWORD')]) {
+                        logStep("Deploy") {
+                            echo "Deploying..."
+                            saveStepToDB("Deploy", "SUCCESS")
+                        }
                     }
                 }
             }
         }
+    }
+
+    post {
+        always {
+            script {
+                def endTime = new Date().format("yyyy-MM-dd HH:mm:ss")
+                def duration = System.currentTimeMillis() - currentBuild.getStartTimeInMillis()
+
+                withCredentials([usernamePassword(credentialsId: 'mysql-credentials', usernameVariable: 'DB_USER', passwordVariable: 'DB_PASSWORD')]) {
+                    sh """
+                    mysql --user=$DB_USER --password=$DB_PASSWORD --host=$DB_HOST --database=$DB_NAME --execute="
+                    INSERT INTO build_metadata (job_name, build_number, start_time, end_time, total_duration, triggered_by, git_branch, node_name) 
+                    VALUES ('portfolio-pipeline', ${env.BUILD_NUMBER}, '${env.START_TIME}', '${endTime}', ${duration}, 'Unknown User', 'origin/main', 'built-in');
+                    "
+                    """
+                }
+            }
+        }
+    }
+}
+
+def saveStepToDB(stepName, status) {
+    def startTime = new Date().format("yyyy-MM-dd HH:mm:ss")
+    def duration = System.currentTimeMillis() - currentBuild.getStartTimeInMillis()
+    
+    withCredentials([usernamePassword(credentialsId: 'mysql-credentials', usernameVariable: 'DB_USER', passwordVariable: 'DB_PASSWORD')]) {
+        sh """
+        mysql --user=$DB_USER --password=$DB_PASSWORD --host=$DB_HOST --database=$DB_NAME --execute="
+        INSERT INTO step_execution (job_name, build_number, step_name, status, start_time, end_time, duration, triggered_by, git_branch, node_name) 
+        VALUES ('portfolio-pipeline', ${env.BUILD_NUMBER}, '${stepName}', '${status}', '${startTime}', NOW(), ${duration}, 'Unknown User', 'origin/main', 'built-in');
+        "
+        """
+    }
+}
+
+def logStep(stepName, Closure body) {
+    def startTime = System.currentTimeMillis()
+    def status = 'SUCCESS'
+    def errorMsg = ''
+
+    try {
+        body()
+    } catch (Exception e) {
+        status = 'FAILED'
+        errorMsg = e.getMessage()
+        throw e
+    } finally {
+        def endTime = System.currentTimeMillis()
+        def duration = endTime - startTime
+        def timestamp = new Date().format("yyyy-MM-dd HH:mm:ss")
+
+        def logEntry = [
+            stepName  : stepName,
+            status    : status,
+            durationMs: duration,
+            timestamp : timestamp,
+            error     : errorMsg
+        ]
+
+        saveStepToDB(stepName, status)
     }
 }
