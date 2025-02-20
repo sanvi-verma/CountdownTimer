@@ -147,9 +147,11 @@ def executeSQL(String query) {
         def dbUrl = env.DB_URL
         def dbUser = env.DB_USER
         def dbPassword = env.DB_PASSWORD
+withCredentials([usernamePassword(credentialsId: 'mysql-credentials', usernameVariable: 'DB_USER', passwordVariable: 'DB_PASSWORD')]) {
+    sh """
+    mysql --user=$DB_USER --password="$DB_PASSWORD" --execute="INSERT INTO step_execution ..."
+    """
+}
 
-        sh """
-            mysql --user=${dbUser} --password=${dbPassword} --execute="${query}" --database=jenkins_db --host=host.docker.internal
-        """
     }
 }
