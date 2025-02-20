@@ -2,25 +2,24 @@ pipeline {
     agent any
 
     environment {
-        LOG_FILE = 'build_logs.json'
+        DB_URL = 'jdbc:mysql://mysql-container:3306/jenkins_db'
+        DB_USER = 'jenkins'
+        DB_PASSWORD = 'password'
     }
 
     stages {
-        stage('Start Build') {
-            steps {
-                script {
-                    def startTime = new Date().format("yyyy-MM-dd HH:mm:ss")
-                    env.START_TIME = startTime
-                    echo "Build started at ${startTime}"
-                }
-            }
-        }
-
         stage('Clone Repository') {
             steps {
                 script {
-                    logStep("Clone Repository") {
-                        echo "Cloning repository..."
+                    def startTime = new Date()
+                    try {
+                        git branch: 'main', url: 'https://github.com/sanvi-verma/CountdownTimer.git'
+                        def endTime = new Date()
+                        def duration = endTime.time - startTime.time
+                        storeStepData("Clone Repository", "SUCCESS", startTime, endTime, duration)
+                    } catch (Exception e) {
+                        storeStepData("Clone Repository", "FAILURE", startTime, new Date(), 0)
+                        error("Step failed: ${e.message}")
                     }
                 }
             }
@@ -29,8 +28,8 @@ pipeline {
         stage('Set Up Environment') {
             steps {
                 script {
-                    logStep("Set Up Environment") {
-                        echo "Setting up environment..."
+                    captureStepData("Set Up Environment") {
+                        echo 'Setting up environment...'
                     }
                 }
             }
@@ -39,8 +38,8 @@ pipeline {
         stage('Build') {
             steps {
                 script {
-                    logStep("Build") {
-                        echo "Building..."
+                    captureStepData("Build") {
+                        echo 'Building the project...'
                     }
                 }
             }
@@ -49,8 +48,8 @@ pipeline {
         stage('Test') {
             steps {
                 script {
-                    logStep("Test") {
-                        echo "Running tests..."
+                    captureStepData("Test") {
+                        echo 'Running tests...'
                     }
                 }
             }
@@ -59,8 +58,8 @@ pipeline {
         stage('Deploy') {
             steps {
                 script {
-                    logStep("Deploy") {
-                        echo "Deploying..."
+                    captureStepData("Deploy") {
+                        echo 'Deploying the application...'
                     }
                 }
             }
@@ -68,86 +67,36 @@ pipeline {
     }
 
     post {
-        always {
-            script {
-                // Debug: Print workspace path
-                echo "Checking workspace: ${env.WORKSPACE}"
-                sh "ls -la ${env.WORKSPACE}"
-
-                def logFile = "${env.WORKSPACE}/${env.LOG_FILE}"
-
-                // Debug: Check if the log file exists
-                if (fileExists(logFile)) {
-                    echo "✅ build_logs.json exists!"
-                    sh "cat ${logFile}"
-                } else {
-                    echo "❌ build_logs.json NOT found! Creating an empty file..."
-                    writeJSON file: logFile, json: []
-                }
-
-                // Add build metadata to the log
-                def endTime = new Date().format("yyyy-MM-dd HH:mm:ss")
-                def duration = System.currentTimeMillis() - currentBuild.getStartTimeInMillis()
-
-                def metadata = [
-                    buildNumber  : env.BUILD_NUMBER,
-                    jenkinsUser  : env.BUILD_USER_ID ?: 'Unknown User',
-                    startTime    : env.START_TIME,
-                    endTime      : endTime,
-                    totalDuration: duration
-                ]
-
-                // Append metadata to the log file
-                def logs = []
-                if (fileExists(logFile)) {
-                    logs = readJSON file: logFile
-                }
-                logs << metadata
-                writeJSON file: logFile, json: logs
-
-                echo "📄 build_logs.json updated successfully!"
-            }
+        success {
+            echo 'Pipeline executed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed!'
         }
     }
 }
 
-// Function to log each step
-def logStep(stepName, Closure body) {
-    def startTime = System.currentTimeMillis()
-    def status = 'SUCCESS'
-    def errorMsg = ''
-
+def captureStepData(stepName, closure) {
+    def startTime = new Date()
     try {
-        body()
+        closure()
+        def endTime = new Date()
+        def duration = endTime.time - startTime.time
+        storeStepData(stepName, "SUCCESS", startTime, endTime, duration)
     } catch (Exception e) {
-        status = 'FAILED'
-        errorMsg = e.getMessage()
-        throw e
-    } finally {
-        def endTime = System.currentTimeMillis()
-        def duration = endTime - startTime
-        def timestamp = new Date().format("yyyy-MM-dd HH:mm:ss")
-
-        def logEntry = [
-            stepName  : stepName,
-            status    : status,
-            durationMs: duration,
-            timestamp : timestamp,
-            error     : errorMsg
-        ]
-
-        writeLogToFile(logEntry)
+        storeStepData(stepName, "FAILURE", startTime, new Date(), 0)
+        error("Step failed: ${e.message}")
     }
 }
 
-// Function to write logs to file
-def writeLogToFile(def logEntry) {
-    def logFile = "${env.WORKSPACE}/${env.LOG_FILE}"
-    def logs = []
-    if (fileExists(logFile)) {
-        logs = readJSON file: logFile
-    }
+def storeStepData(stepName, status, startTime, endTime, duration) {
+    def buildNumber = env.BUILD_NUMBER
+    def jobName = env.JOB_NAME
+    def nodeName = env.NODE_NAME ?: "Master"
+    def triggeredBy = currentBuild.rawBuild.getCause(hudson.model.Cause$UserIdCause)?.userId ?: "Automated Trigger"
+    def gitBranch = env.GIT_BRANCH ?: "main"
 
-    logs << logEntry
-    writeJSON file: logFile, json: logs
+    def query = "INSERT INTO step_execution (job_name, build_number, step_name, status, start_time, end_time, duration, triggered_by, git_branch, node_name) VALUES ('${jobName}', ${buildNumber}, '${stepName}', '${status}', '${startTime}', '${endTime}', ${duration}, '${triggeredBy}', '${gitBranch}', '${nodeName}')"
+
+    sh "mysql -h mysql-container -u${DB_USER} -p${DB_PASSWORD} -e \"${query}\" jenkins_db"
 }
