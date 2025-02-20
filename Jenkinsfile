@@ -92,7 +92,7 @@ pipeline {
     sh '''#!/bin/bash
     mysql --user="$DB_USER" --password="$DB_PASSWORD" --host="host.docker.internal" --database="jenkins_db" --execute="
     INSERT INTO step_execution (job_name, build_number, step_name, status, start_time, end_time, duration, triggered_by, git_branch, node_name) 
-    VALUES ('portfolio-pipeline', '${BUILD_NUMBER}', '${stepName}', '${status}', '${startTime}', NOW(), '${duration}', 'Unknown User', 'origin/main', 'built-in');
+    VALUES ('portfolio-pipeline', '$BUILD_NUMBER', '$stepName', '$status', '$startTime', NOW(), '$duration', 'Unknown User', 'origin/main', 'built-in');
     "
     '''
 
@@ -102,21 +102,25 @@ pipeline {
         }
     }
 }
-
 def saveStepToDB(stepName, status) {
     def startTime = new Date().format("yyyy-MM-dd HH:mm:ss")
     def duration = System.currentTimeMillis() - currentBuild.getStartTimeInMillis()
     
-   withCredentials([usernamePassword(credentialsId: 'mysql-credentials', usernameVariable: 'DB_USER', passwordVariable: 'DB_PASSWORD')]) {
-    sh '''#!/bin/bash
-    mysql --user="$DB_USER" --password="$DB_PASSWORD" --host="host.docker.internal" --database="jenkins_db" --execute="
-    INSERT INTO step_execution (job_name, build_number, step_name, status, start_time, end_time, duration, triggered_by, git_branch, node_name) 
-    VALUES ('portfolio-pipeline', '${BUILD_NUMBER}', '${stepName}', '${status}', '${startTime}', NOW(), '${duration}', 'Unknown User', 'origin/main', 'built-in');
-    "
-    '''
+    withCredentials([usernamePassword(credentialsId: 'mysql-credentials', usernameVariable: 'DB_USER', passwordVariable: 'DB_PASSWORD')]) {
+        sh """#!/bin/bash
+        export STEP_NAME="${stepName}"
+        export STEP_STATUS="${status}"
+        export START_TIME="${startTime}"
+        export DURATION="${duration}"
+
+        mysql --user="$DB_USER" --password="$DB_PASSWORD" --host="host.docker.internal" --database="jenkins_db" --execute="
+        INSERT INTO step_execution (job_name, build_number, step_name, status, start_time, end_time, duration, triggered_by, git_branch, node_name) 
+        VALUES ('portfolio-pipeline', '$BUILD_NUMBER', '$STEP_NAME', '$STEP_STATUS', '$START_TIME', NOW(), '$DURATION', 'Unknown User', 'origin/main', 'built-in');
+        "
+        """
+    }
 }
 
-}
 
 def logStep(stepName, Closure body) {
     def startTime = System.currentTimeMillis()
@@ -128,20 +132,16 @@ def logStep(stepName, Closure body) {
     } catch (Exception e) {
         status = 'FAILED'
         errorMsg = e.getMessage()
-        throw e
     } finally {
         def endTime = System.currentTimeMillis()
         def duration = endTime - startTime
         def timestamp = new Date().format("yyyy-MM-dd HH:mm:ss")
 
-        def logEntry = [
-            stepName  : stepName,
-            status    : status,
-            durationMs: duration,
-            timestamp : timestamp,
-            error     : errorMsg
-        ]
-
         saveStepToDB(stepName, status)
+        
+        if (status == 'FAILED') {
+            throw new Exception("Step ${stepName} failed: ${errorMsg}")
+        }
     }
 }
+
