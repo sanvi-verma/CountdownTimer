@@ -89,12 +89,13 @@ pipeline {
                 def duration = System.currentTimeMillis() - currentBuild.getStartTimeInMillis()
 
                 withCredentials([usernamePassword(credentialsId: 'mysql-credentials', usernameVariable: 'DB_USER', passwordVariable: 'DB_PASSWORD')]) {
-                    sh """
-                    mysql --user=$DB_USER --password=$DB_PASSWORD --host=$DB_HOST --database=$DB_NAME --execute="
-                    INSERT INTO build_metadata (job_name, build_number, start_time, end_time, total_duration, triggered_by, git_branch, node_name) 
-                    VALUES ('portfolio-pipeline', ${env.BUILD_NUMBER}, '${env.START_TIME}', '${endTime}', ${duration}, 'Unknown User', 'origin/main', 'built-in');
-                    "
-                    """
+                   sh """
+mysql --user=$DB_USER --password=$DB_PASSWORD --host=$DB_HOST --enable-cleartext-plugin --database=$DB_NAME --execute="
+INSERT INTO build_metadata (job_name, build_number, start_time, end_time, total_duration, triggered_by, git_branch, node_name) 
+VALUES ('portfolio-pipeline', ${env.BUILD_NUMBER}, '${env.START_TIME}', '${endTime}', ${duration}, 'Unknown User', 'origin/main', 'built-in');
+"
+"""
+
                 }
             }
         }
@@ -107,11 +108,12 @@ def saveStepToDB(stepName, status) {
     
     withCredentials([usernamePassword(credentialsId: 'mysql-credentials', usernameVariable: 'DB_USER', passwordVariable: 'DB_PASSWORD')]) {
         sh """
-        mysql --user=$DB_USER --password=$DB_PASSWORD --host=$DB_HOST --database=$DB_NAME --execute="
-        INSERT INTO step_execution (job_name, build_number, step_name, status, start_time, end_time, duration, triggered_by, git_branch, node_name) 
-        VALUES ('portfolio-pipeline', ${env.BUILD_NUMBER}, '${stepName}', '${status}', '${startTime}', NOW(), ${duration}, 'Unknown User', 'origin/main', 'built-in');
-        "
-        """
+mysql --user=$DB_USER --password=$DB_PASSWORD --host=$DB_HOST --enable-cleartext-plugin --database=$DB_NAME --execute="
+INSERT INTO step_execution (job_name, build_number, step_name, status, start_time, end_time, duration, triggered_by, git_branch, node_name) 
+VALUES ('portfolio-pipeline', ${env.BUILD_NUMBER}, '${stepName}', '${status}', '${startTime}', NOW(), ${duration}, 'Unknown User', 'origin/main', 'built-in');
+"
+"""
+
     }
 }
 
