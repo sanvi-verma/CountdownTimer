@@ -2,24 +2,27 @@ pipeline {
     agent any
 
     environment {
-        DB_URL = 'jdbc:mysql://mysql-container:3306/jenkins_db'
-        DB_USER = 'jenkins'
-        DB_PASSWORD = 'password'
+        DB_URL = "jdbc:mysql://host.docker.internal:3306/jenkins_db"
+        DB_USER = "jenkins"
+        DB_PASSWORD = "yourpassword"
     }
 
     stages {
+        stage('Start Build') {
+            steps {
+                script {
+                    def startTime = new Date().format("yyyy-MM-dd HH:mm:ss")
+                    env.START_TIME = startTime
+                    echo "Build started at ${startTime}"
+                }
+            }
+        }
+
         stage('Clone Repository') {
             steps {
                 script {
-                    def startTime = new Date()
-                    try {
-                        git branch: 'main', url: 'https://github.com/sanvi-verma/CountdownTimer.git'
-                        def endTime = new Date()
-                        def duration = endTime.time - startTime.time
-                        storeStepData("Clone Repository", "SUCCESS", startTime, endTime, duration)
-                    } catch (Exception e) {
-                        storeStepData("Clone Repository", "FAILURE", startTime, new Date(), 0)
-                        error("Step failed: ${e.message}")
+                    logStep("Clone Repository") {
+                        echo "Cloning repository..."
                     }
                 }
             }
@@ -28,8 +31,8 @@ pipeline {
         stage('Set Up Environment') {
             steps {
                 script {
-                    captureStepData("Set Up Environment") {
-                        echo 'Setting up environment...'
+                    logStep("Set Up Environment") {
+                        echo "Setting up environment..."
                     }
                 }
             }
@@ -38,8 +41,8 @@ pipeline {
         stage('Build') {
             steps {
                 script {
-                    captureStepData("Build") {
-                        echo 'Building the project...'
+                    logStep("Build") {
+                        echo "Building..."
                     }
                 }
             }
@@ -48,8 +51,8 @@ pipeline {
         stage('Test') {
             steps {
                 script {
-                    captureStepData("Test") {
-                        echo 'Running tests...'
+                    logStep("Test") {
+                        echo "Running tests..."
                     }
                 }
             }
@@ -58,8 +61,8 @@ pipeline {
         stage('Deploy') {
             steps {
                 script {
-                    captureStepData("Deploy") {
-                        echo 'Deploying the application...'
+                    logStep("Deploy") {
+                        echo "Deploying..."
                     }
                 }
             }
@@ -67,36 +70,86 @@ pipeline {
     }
 
     post {
-        success {
-            echo 'Pipeline executed successfully!'
-        }
-        failure {
-            echo 'Pipeline failed!'
+        always {
+            script {
+                def endTime = new Date().format("yyyy-MM-dd HH:mm:ss")
+                def duration = System.currentTimeMillis() - currentBuild.getStartTimeInMillis()
+
+                def buildMetadata = [
+                    job_name    : env.JOB_NAME,
+                    build_number: env.BUILD_NUMBER,
+                    triggered_by: env.BUILD_USER_ID ?: 'Unknown User',
+                    start_time  : env.START_TIME,
+                    end_time    : endTime,
+                    duration    : duration,
+                    git_branch  : env.GIT_BRANCH ?: 'Unknown'
+                ]
+
+                storeBuildMetadata(buildMetadata)
+            }
         }
     }
 }
 
-def captureStepData(stepName, closure) {
-    def startTime = new Date()
+def logStep(stepName, Closure body) {
+    def startTime = System.currentTimeMillis()
+    def status = 'SUCCESS'
+    def errorMsg = ''
+
     try {
-        closure()
-        def endTime = new Date()
-        def duration = endTime.time - startTime.time
-        storeStepData(stepName, "SUCCESS", startTime, endTime, duration)
+        body()
     } catch (Exception e) {
-        storeStepData(stepName, "FAILURE", startTime, new Date(), 0)
-        error("Step failed: ${e.message}")
+        status = 'FAILED'
+        errorMsg = e.getMessage()
+        throw e
+    } finally {
+        def endTime = System.currentTimeMillis()
+        def duration = endTime - startTime
+        def timestamp = new Date().format("yyyy-MM-dd HH:mm:ss")
+
+        def stepData = [
+            job_name    : env.JOB_NAME,
+            build_number: env.BUILD_NUMBER,
+            step_name   : stepName,
+            status      : status,
+            start_time  : timestamp,
+            end_time    : new Date().format("yyyy-MM-dd HH:mm:ss"),
+            duration    : duration,
+            triggered_by: env.BUILD_USER_ID ?: 'Unknown User',
+            git_branch  : env.GIT_BRANCH ?: 'Unknown',
+            node_name   : env.NODE_NAME
+        ]
+
+        storeStepData(stepData)
     }
 }
 
-def storeStepData(stepName, status, startTime, endTime, duration) {
-    def buildNumber = env.BUILD_NUMBER
-    def jobName = env.JOB_NAME
-    def nodeName = env.NODE_NAME ?: "Master"
-    def triggeredBy = currentBuild.rawBuild.getCause(hudson.model.Cause$UserIdCause)?.userId ?: "Automated Trigger"
-    def gitBranch = env.GIT_BRANCH ?: "main"
+def storeStepData(def data) {
+    def query = """
+        INSERT INTO step_execution (job_name, build_number, step_name, status, start_time, end_time, duration, triggered_by, git_branch, node_name)
+        VALUES ('${data.job_name}', ${data.build_number}, '${data.step_name}', '${data.status}', '${data.start_time}', '${data.end_time}', ${data.duration}, '${data.triggered_by}', '${data.git_branch}', '${data.node_name}')
+    """
 
-    def query = "INSERT INTO step_execution (job_name, build_number, step_name, status, start_time, end_time, duration, triggered_by, git_branch, node_name) VALUES ('${jobName}', ${buildNumber}, '${stepName}', '${status}', '${startTime}', '${endTime}', ${duration}, '${triggeredBy}', '${gitBranch}', '${nodeName}')"
+    executeSQL(query)
+}
 
-    sh "mysql -h mysql-container -u${DB_USER} -p${DB_PASSWORD} -e \"${query}\" jenkins_db"
+def storeBuildMetadata(def data) {
+    def query = """
+        INSERT INTO build_metadata (job_name, build_number, triggered_by, start_time, end_time, duration, git_branch)
+        VALUES ('${data.job_name}', ${data.build_number}, '${data.triggered_by}', '${data.start_time}', '${data.end_time}', ${data.duration}, '${data.git_branch}')
+    """
+
+    executeSQL(query)
+}
+
+def executeSQL(String query) {
+    withCredentials([usernamePassword(credentialsId: 'mysql-credentials', usernameVariable: 'DB_USER', passwordVariable: 'DB_PASSWORD')]) {
+        def dbUrl = env.DB_URL
+        def dbUser = env.DB_USER
+        def dbPassword = env.DB_PASSWORD
+
+        sh """
+            mysql --user=${dbUser} --password=${dbPassword} --execute="${query}" --database=jenkins_db --host=host.docker.internal
+        """
+    }
 }
