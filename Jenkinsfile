@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        DB_HOST = "host.docker.internal"
+        DB_HOST = "mysql-db-new"
         DB_NAME = "jenkins_db"
         DB_USER = "root"
         DB_PASSWORD = "root"
