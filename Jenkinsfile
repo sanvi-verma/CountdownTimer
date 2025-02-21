@@ -2,18 +2,16 @@ pipeline {
     agent any
 
     environment {
-        DB_HOST = "mysql-db-new"
-        DB_NAME = "jenkins_db"
-        DB_USER = "root"
-        DB_PASSWORD = "root"
+        LOG_FILE = 'build_logs.json'
     }
 
     stages {
         stage('Start Build') {
             steps {
                 script {
-                    env.START_TIME = new Date().format("yyyy-MM-dd HH:mm:ss")
-                    echo "Build started at ${env.START_TIME}"
+                    def startTime = new Date().format("yyyy-MM-dd HH:mm:ss")
+                    env.START_TIME = startTime
+                    echo "Build started at ${startTime}"
                 }
             }
         }
@@ -21,8 +19,10 @@ pipeline {
         stage('Clone Repository') {
             steps {
                 script {
-                    echo "Cloning repository..."
-                    saveStepToDB("Clone Repository", "SUCCESS")
+                    logStep("Clone Repository") {
+                        // Your clone repository command here
+                        echo "Cloning repository..."
+                    }
                 }
             }
         }
@@ -30,8 +30,10 @@ pipeline {
         stage('Set Up Environment') {
             steps {
                 script {
-                    echo "Setting up environment..."
-                    saveStepToDB("Set Up Environment", "SUCCESS")
+                    logStep("Set Up Environment") {
+                        // Your setup environment command here
+                        echo "Setting up environment..."
+                    }
                 }
             }
         }
@@ -39,8 +41,10 @@ pipeline {
         stage('Build') {
             steps {
                 script {
-                    echo "Building..."
-                    saveStepToDB("Build", "SUCCESS")
+                    logStep("Build") {
+                        // Your build command here
+                        echo "Building..."
+                    }
                 }
             }
         }
@@ -48,8 +52,10 @@ pipeline {
         stage('Test') {
             steps {
                 script {
-                    echo "Running tests..."
-                    saveStepToDB("Test", "SUCCESS")
+                    logStep("Test") {
+                        // Your test command here
+                        echo "Running tests..."
+                    }
                 }
             }
         }
@@ -57,8 +63,10 @@ pipeline {
         stage('Deploy') {
             steps {
                 script {
-                    echo "Deploying..."
-                    saveStepToDB("Deploy", "SUCCESS")
+                    logStep("Deploy") {
+                        // Your deploy command here
+                        echo "Deploying..."
+                    }
                 }
             }
         }
@@ -67,28 +75,66 @@ pipeline {
     post {
         always {
             script {
+                // Add build metadata to the log
                 def endTime = new Date().format("yyyy-MM-dd HH:mm:ss")
                 def duration = System.currentTimeMillis() - currentBuild.getStartTimeInMillis()
 
-                sh """#!/bin/bash
-                mysql --user="$DB_USER" --password="$DB_PASSWORD" --host="$DB_HOST" --database="$DB_NAME" --execute="
-                INSERT INTO step_execution (job_name, build_number, step_name, status, start_time, end_time, duration, triggered_by, git_branch, node_name) 
-                VALUES ('pipeline-job', '$BUILD_NUMBER', 'Pipeline Completed', 'SUCCESS', '$env.START_TIME', '$endTime', '$duration', 'Unknown User', 'origin/main', 'built-in');
-                "
-                """
+                def metadata = [
+                    buildNumber: env.BUILD_NUMBER,
+                    jenkinsUser: env.BUILD_USER_ID ?: 'Unknown User',
+                    startTime: env.START_TIME,
+                    endTime: endTime,
+                    totalDuration: duration
+                ]
+
+                // Write metadata to the log file
+                def logFile = "${env.WORKSPACE}/${env.LOG_FILE}"
+                def logs = []
+                if (fileExists(logFile)) {
+                    logs = readJSON file: logFile
+                }
+                logs << metadata
+                writeJSON file: logFile, json: logs
             }
         }
     }
 }
 
-def saveStepToDB(stepName, status) {
-    def startTime = new Date().format("yyyy-MM-dd HH:mm:ss")
-    def duration = System.currentTimeMillis() - currentBuild.getStartTimeInMillis()
+def logStep(stepName, Closure body) {
+    def startTime = System.currentTimeMillis()
+    def status = 'SUCCESS'
+    def errorMsg = ''
 
-    sh """#!/bin/bash
-    mysql --user="$DB_USER" --password="$DB_PASSWORD" --host="$DB_HOST" --database="$DB_NAME" --execute="
-    INSERT INTO step_execution (job_name, build_number, step_name, status, start_time, end_time, duration, triggered_by, git_branch, node_name) 
-    VALUES ('pipeline-job', '$BUILD_NUMBER', '$stepName', '$status', '$startTime', NOW(), '$duration', 'Unknown User', 'origin/main', 'built-in');
-    "
-    """
+    try {
+        body()
+    } catch (Exception e) {
+        status = 'FAILED'
+        errorMsg = e.getMessage()
+        throw e
+    } finally {
+        def endTime = System.currentTimeMillis()
+        def duration = endTime - startTime
+        def timestamp = new Date().format("yyyy-MM-dd HH:mm:ss")
+
+        def logEntry = [
+            stepName  : stepName,
+            status    : status,
+            durationMs: duration,
+            timestamp : timestamp,
+            error     : errorMsg
+        ]
+
+        writeLogToFile(logEntry)
+    }
+}
+
+def writeLogToFile(def logEntry) {
+    def logFile = "${env.WORKSPACE}/${env.LOG_FILE}"
+    def logs = []
+    if (fileExists(logFile)) {
+        logs = readJSON file: logFile
+    }
+
+    logs << logEntry
+    writeJSON file: logFile, json: logs
 }
