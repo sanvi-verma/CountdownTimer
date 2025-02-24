@@ -20,7 +20,6 @@ pipeline {
             steps {
                 script {
                     logStep("Clone Repository") {
-                        // Your clone repository command here
                         echo "Cloning repository..."
                     }
                 }
@@ -31,7 +30,6 @@ pipeline {
             steps {
                 script {
                     logStep("Set Up Environment") {
-                        // Your setup environment command here
                         echo "Setting up environment..."
                     }
                 }
@@ -42,7 +40,6 @@ pipeline {
             steps {
                 script {
                     logStep("Build") {
-                        // Your build command here
                         echo "Building..."
                     }
                 }
@@ -53,7 +50,6 @@ pipeline {
             steps {
                 script {
                     logStep("Test") {
-                        // Your test command here
                         echo "Running tests..."
                     }
                 }
@@ -64,7 +60,6 @@ pipeline {
             steps {
                 script {
                     logStep("Deploy") {
-                        // Your deploy command here
                         echo "Deploying..."
                     }
                 }
@@ -75,7 +70,6 @@ pipeline {
     post {
         always {
             script {
-                // Add build metadata to the log
                 def endTime = new Date().format("yyyy-MM-dd HH:mm:ss")
                 def duration = System.currentTimeMillis() - currentBuild.getStartTimeInMillis()
 
@@ -87,14 +81,7 @@ pipeline {
                     totalDuration: duration
                 ]
 
-                // Write metadata to the log file
-                def logFile = "${env.WORKSPACE}/${env.LOG_FILE}"
-                def logs = []
-                if (fileExists(logFile)) {
-                    logs = readJSON file: logFile
-                }
-                logs << metadata
-                writeJSON file: logFile, json: logs
+                writeLogToFile(metadata)
             }
         }
     }
@@ -125,6 +112,7 @@ def logStep(stepName, Closure body) {
         ]
 
         writeLogToFile(logEntry)
+        publishToRabbitMQ(logEntry)
     }
 }
 
@@ -137,4 +125,20 @@ def writeLogToFile(def logEntry) {
 
     logs << logEntry
     writeJSON file: logFile, json: logs
+}
+
+def publishToRabbitMQ(def logEntry) {
+    def message = groovy.json.JsonOutput.toJson(logEntry)
+
+    rabbitmqPublisher(
+        name: 'rabbitmq-broker',        // Configured RabbitMQ broker in Jenkins
+        hostname: 'rabbitmq',           // RabbitMQ container hostname
+        portNumber: '5672',             // RabbitMQ port
+        virtualHost: '/',               // Virtual host
+        topic: 'jenkins-logs',          // Routing key
+        exchange: 'jenkins-exchange',   // Exchange name
+        queue: 'jenkins-logs',          // Queue name
+        authenticationMethod: 'UsernamePassword', // Authentication method
+        message: message                // Log entry as JSON string
+    )
 }
