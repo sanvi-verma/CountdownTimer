@@ -114,12 +114,8 @@ def sendMetadata(stageName, status, startTime, endTime) {
         "duration": "${duration}"
     }"""
 
-    sh "curl -X POST https://abc123.ngrok.io/ -H 'Content-Type: application/json' -d '{
-    \"stage\": \"Clone Repository\",
-    \"status\": \"SUCCESS\",
-    \"startTime\": \"1740469208258\",
-    \"endTime\": \"1740469209033\",
-    \"duration\": \"775\"
-}'"
+    sh """curl -X POST https://8c40-192-245-162-37.ngrok-free.app \
+        -H "Content-Type: application/json" \
+        -d '${metadata}'"""
 
 }
