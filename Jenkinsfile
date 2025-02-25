@@ -114,7 +114,7 @@ def sendMetadata(stageName, status, startTime, endTime) {
         "duration": "${duration}"
     }"""
 
-    sh """curl -X POST https://8c40-192-245-162-37.ngrok-free.app \
+    sh """curl -X POST https://8ae4-192-245-162-37.ngrok-free.app \
         -H "Content-Type: application/json" \
         -d '${metadata}'"""
 
