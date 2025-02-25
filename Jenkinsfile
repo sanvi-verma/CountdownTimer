@@ -1,6 +1,15 @@
 pipeline {
     agent any
 
+    options {
+        timestamps()  // Adds timestamps in logs
+        buildDiscarder(logRotator(numToKeepStr: '10'))  // Keep last 10 builds
+    }
+
+    environment {
+        API_URL = 'https://8ae4-192-245-162-37.ngrok-free.app/jenkins-metadata'
+    }
+
     stages {
         stage('Clone Repository') {
             steps {
@@ -106,16 +115,28 @@ pipeline {
 
 def sendMetadata(stageName, status, startTime, endTime) {
     def duration = endTime - startTime
+    def buildNumber = env.BUILD_NUMBER
+    def jobName = env.JOB_NAME
+    def nodeName = env.NODE_NAME
+    def executorNumber = env.EXECUTOR_NUMBER ?: "N/A"
+    def buildUrl = env.BUILD_URL
+    def consoleLog = sh(script: "tail -n 100 ${env.WORKSPACE}/build.log || echo 'No log found'", returnStdout: true).trim()
+
     def metadata = """{
         "stage": "${stageName}",
         "status": "${status}",
         "startTime": "${startTime}",
         "endTime": "${endTime}",
-        "duration": "${duration}"
+        "duration": "${duration}",
+        "buildNumber": "${buildNumber}",
+        "jobName": "${jobName}",
+        "nodeName": "${nodeName}",
+        "executorNumber": "${executorNumber}",
+        "buildUrl": "${buildUrl}",
+        "consoleLog": "${consoleLog.replaceAll("\"", "'")}"
     }"""
 
-    sh """curl -X POST https://8ae4-192-245-162-37.ngrok-free.app/jenkins-metadata \
+    sh """curl -X POST ${API_URL} \
         -H "Content-Type: application/json" \
         -d '${metadata}'"""
-
 }
