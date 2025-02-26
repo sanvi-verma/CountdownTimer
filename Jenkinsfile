@@ -7,7 +7,7 @@ pipeline {
     }
 
     environment {
-        API_URL = 'https://8ae4-192-245-162-37.ngrok-free.app/jenkins-metadata'
+        API_URL = '    https://4ad2-2402-e280-3e1d-bce-6df3-1e62-d8d0-f624.ngrok-free.app/jenkins-metadata'
     }
 
     stages {
