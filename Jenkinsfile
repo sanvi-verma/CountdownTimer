@@ -121,9 +121,8 @@ def appendStageMetadata(stageName, status, startTime, endTime, consoleLog) {
         "consoleLog": "${consoleLog.replaceAll("\"", "'")}"
     }"""
 
-    if (env.METADATA.contains('"steps": []')) {
-        env.METADATA = env.METADATA.replace('"steps": []', '"steps": [' + newStep + ']')
-    } else {
-        env.METADATA = env.METADATA.replace('"steps": [', '"steps": [' + newStep + ', ')
-    }
+    // Append new stage metadata at the end of the array instead of the beginning
+    env.METADATA = env.METADATA.replaceFirst('"steps": \\[', '"steps": [' + (env.METADATA.contains('"steps": []') ? newStep : env.METADATA.split('"steps": \\[')[1].replaceFirst(']', ', ' + newStep + ']')))
+}
+
 }
