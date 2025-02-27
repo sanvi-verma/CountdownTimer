@@ -7,7 +7,7 @@ pipeline {
     }
 
     environment {
-        API_URL = '    https://4ad2-2402-e280-3e1d-bce-6df3-1e62-d8d0-f624.ngrok-free.app/jenkins-metadata'
+        API_URL = 'https://4ad2-2402-e280-3e1d-bce-6df3-1e62-d8d0-f624.ngrok-free.app/jenkins-metadata'
     }
 
     stages {
@@ -18,27 +18,10 @@ pipeline {
                     try {
                         git branch: 'main', url: 'https://github.com/sanvi-verma/CountdownTimer.git'
                         def endTime = new Date().getTime()
-                        sendMetadata("Clone Repository", "SUCCESS", startTime, endTime)
+                        sendMetadata("Clone Repository", "SUCCESS", startTime, endTime, "Cloning into repo...")
                     } catch (Exception e) {
                         def endTime = new Date().getTime()
-                        sendMetadata("Clone Repository", "FAILURE", startTime, endTime)
-                        error("Stage failed: ${e}")
-                    }
-                }
-            }
-        }
-
-        stage('Set Up Environment') {
-            steps {
-                script {
-                    def startTime = new Date().getTime()
-                    try {
-                        echo 'Setting up environment...'
-                        def endTime = new Date().getTime()
-                        sendMetadata("Set Up Environment", "SUCCESS", startTime, endTime)
-                    } catch (Exception e) {
-                        def endTime = new Date().getTime()
-                        sendMetadata("Set Up Environment", "FAILURE", startTime, endTime)
+                        sendMetadata("Clone Repository", "FAILURE", startTime, endTime, e.toString())
                         error("Stage failed: ${e}")
                     }
                 }
@@ -52,10 +35,10 @@ pipeline {
                     try {
                         echo 'Building the project...'
                         def endTime = new Date().getTime()
-                        sendMetadata("Build", "SUCCESS", startTime, endTime)
+                        sendMetadata("Build", "SUCCESS", startTime, endTime, "Compiling source code...")
                     } catch (Exception e) {
                         def endTime = new Date().getTime()
-                        sendMetadata("Build", "FAILURE", startTime, endTime)
+                        sendMetadata("Build", "FAILURE", startTime, endTime, e.toString())
                         error("Stage failed: ${e}")
                     }
                 }
@@ -69,10 +52,10 @@ pipeline {
                     try {
                         echo 'Running tests...'
                         def endTime = new Date().getTime()
-                        sendMetadata("Test", "SUCCESS", startTime, endTime)
+                        sendMetadata("Test", "SUCCESS", startTime, endTime, "Running tests...")
                     } catch (Exception e) {
                         def endTime = new Date().getTime()
-                        sendMetadata("Test", "FAILURE", startTime, endTime)
+                        sendMetadata("Test", "FAILURE", startTime, endTime, e.toString())
                         error("Stage failed: ${e}")
                     }
                 }
@@ -86,10 +69,10 @@ pipeline {
                     try {
                         echo 'Deploying the application...'
                         def endTime = new Date().getTime()
-                        sendMetadata("Deploy", "SUCCESS", startTime, endTime)
+                        sendMetadata("Deploy", "SUCCESS", startTime, endTime, "Deployment successful.")
                     } catch (Exception e) {
                         def endTime = new Date().getTime()
-                        sendMetadata("Deploy", "FAILURE", startTime, endTime)
+                        sendMetadata("Deploy", "FAILED", startTime, endTime, "Deployment failed due to missing config.")
                         error("Stage failed: ${e}")
                     }
                 }
@@ -100,43 +83,49 @@ pipeline {
     post {
         success {
             script {
-                sendMetadata("Pipeline", "SUCCESS", 0, 0)
+                sendFinalMetadata("SUCCESS")
                 echo 'Pipeline executed successfully!'
             }
         }
         failure {
             script {
-                sendMetadata("Pipeline", "FAILURE", 0, 0)
+                sendFinalMetadata("FAILURE")
                 echo 'Pipeline failed!'
             }
         }
     }
 }
 
-def sendMetadata(stageName, status, startTime, endTime) {
-    def duration = endTime - startTime
-    def buildNumber = env.BUILD_NUMBER
-    def jobName = env.JOB_NAME
-    def nodeName = env.NODE_NAME
-    def executorNumber = env.EXECUTOR_NUMBER ?: "N/A"
-    def buildUrl = env.BUILD_URL
-    def consoleLog = sh(script: "tail -n 100 ${env.WORKSPACE}/build.log || echo 'No log found'", returnStdout: true).trim()
+def stepsData = []
 
-    def metadata = """{
-        "stage": "${stageName}",
-        "status": "${status}",
-        "startTime": "${startTime}",
-        "endTime": "${endTime}",
-        "duration": "${duration}",
-        "buildNumber": "${buildNumber}",
-        "jobName": "${jobName}",
-        "nodeName": "${nodeName}",
-        "executorNumber": "${executorNumber}",
-        "buildUrl": "${buildUrl}",
-        "consoleLog": "${consoleLog.replaceAll("\"", "'")}"
-    }"""
+def sendMetadata(stageName, status, startTime, endTime, consoleLog) {
+    def duration = endTime - startTime
+
+    stepsData << [
+        stage      : stageName,
+        status     : status,
+        startTime  : startTime.toString(),
+        endTime    : endTime.toString(),
+        duration   : duration.toString(),
+        consoleLog : consoleLog
+    ]
+}
+
+def sendFinalMetadata(status) {
+    def metadata = [
+        metadata: [
+            buildNumber    : env.BUILD_NUMBER,
+            jobName        : env.JOB_NAME,
+            nodeName       : env.NODE_NAME,
+            executorNumber : env.EXECUTOR_NUMBER ?: "0",
+            buildUrl       : env.BUILD_URL
+        ],
+        steps: stepsData
+    ]
+
+    def json = groovy.json.JsonOutput.toJson(metadata)
 
     sh """curl -X POST ${API_URL} \
         -H "Content-Type: application/json" \
-        -d '${metadata}'"""
+        -d '${json}'"""
 }
