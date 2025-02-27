@@ -7,7 +7,7 @@ pipeline {
     }
 
     environment {
-        API_URL = 'https://4ad2-2402-e280-3e1d-bce-6df3-1e62-d8d0-f624.ngrok-free.app/jenkins-metadata'
+        API_URL = '    https://4ad2-2402-e280-3e1d-bce-6df3-1e62-d8d0-f624.ngrok-free.app/jenkins-metadata'
     }
 
     stages {
@@ -90,7 +90,7 @@ pipeline {
                     } catch (Exception e) {
                         def endTime = new Date().getTime()
                         sendMetadata("Deploy", "FAILURE", startTime, endTime)
-                        error("Deployment failed due to missing config.")
+                        error("Stage failed: ${e}")
                     }
                 }
             }
@@ -100,13 +100,13 @@ pipeline {
     post {
         success {
             script {
-                sendFinalMetadata("SUCCESS")
+                sendMetadata("Pipeline", "SUCCESS", 0, 0)
                 echo 'Pipeline executed successfully!'
             }
         }
         failure {
             script {
-                sendFinalMetadata("FAILURE")
+                sendMetadata("Pipeline", "FAILURE", 0, 0)
                 echo 'Pipeline failed!'
             }
         }
