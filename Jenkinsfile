@@ -5,10 +5,17 @@ pipeline {
 
     environment {
         API_URL = 'https://4ad2-2402-e280-3e1d-bce-6df3-1e62-d8d0-f624.ngrok-free.app/jenkins-metadata'
-        METADATA = []  // Initialize as an empty list
     }
 
     stages {
+        stage('Initialize Metadata') {
+            steps {
+                script {
+                    METADATA = []  // Initialize the list inside script block
+                }
+            }
+        }
+
         stage('Clone Repository') {
             steps {
                 script {
@@ -16,10 +23,10 @@ pipeline {
                     try {
                         git branch: 'main', url: 'https://github.com/sanvi-verma/CountdownTimer.git'
                         def endTime = System.currentTimeMillis()
-                        appendStageMetadata("Clone Repository", "SUCCESS", startTime, endTime, "Repository cloned successfully.")
+                        appendStageMetadata("Clone Repository", "SUCCESS", startTime, endTime, "Repository cloned successfully.", METADATA)
                     } catch (Exception e) {
                         def endTime = System.currentTimeMillis()
-                        appendStageMetadata("Clone Repository", "FAILURE", startTime, endTime, e.toString())
+                        appendStageMetadata("Clone Repository", "FAILURE", startTime, endTime, e.toString(), METADATA)
                         error("Stage failed: ${e}")
                     }
                 }
@@ -33,10 +40,10 @@ pipeline {
                     try {
                         echo 'Building the project...'
                         def endTime = System.currentTimeMillis()
-                        appendStageMetadata("Build", "SUCCESS", startTime, endTime, "Build completed.")
+                        appendStageMetadata("Build", "SUCCESS", startTime, endTime, "Build completed.", METADATA)
                     } catch (Exception e) {
                         def endTime = System.currentTimeMillis()
-                        appendStageMetadata("Build", "FAILURE", startTime, endTime, e.toString())
+                        appendStageMetadata("Build", "FAILURE", startTime, endTime, e.toString(), METADATA)
                         error("Stage failed: ${e}")
                     }
                 }
@@ -50,10 +57,10 @@ pipeline {
                     try {
                         echo 'Running tests...'
                         def endTime = System.currentTimeMillis()
-                        appendStageMetadata("Test", "SUCCESS", startTime, endTime, "Tests executed successfully.")
+                        appendStageMetadata("Test", "SUCCESS", startTime, endTime, "Tests executed successfully.", METADATA)
                     } catch (Exception e) {
                         def endTime = System.currentTimeMillis()
-                        appendStageMetadata("Test", "FAILURE", startTime, endTime, e.toString())
+                        appendStageMetadata("Test", "FAILURE", startTime, endTime, e.toString(), METADATA)
                         error("Stage failed: ${e}")
                     }
                 }
@@ -67,10 +74,10 @@ pipeline {
                     try {
                         echo 'Deploying the application...'
                         def endTime = System.currentTimeMillis()
-                        appendStageMetadata("Deploy", "SUCCESS", startTime, endTime, "Deployment completed successfully.")
+                        appendStageMetadata("Deploy", "SUCCESS", startTime, endTime, "Deployment completed successfully.", METADATA)
                     } catch (Exception e) {
                         def endTime = System.currentTimeMillis()
-                        appendStageMetadata("Deploy", "FAILURE", startTime, endTime, e.toString())
+                        appendStageMetadata("Deploy", "FAILURE", startTime, endTime, e.toString(), METADATA)
                         error("Stage failed: ${e}")
                     }
                 }
@@ -81,14 +88,14 @@ pipeline {
     post {
         always {
             script {
-                sendFinalMetadata()
+                sendFinalMetadata(METADATA)
             }
         }
     }
 }
 
 // **Function to Append Stage Metadata**
-def appendStageMetadata(stageName, status, startTime, endTime, consoleLog) {
+def appendStageMetadata(stageName, status, startTime, endTime, consoleLog, metadataList) {
     def duration = endTime - startTime
     def stepData = [
         stage: stageName,
@@ -99,11 +106,11 @@ def appendStageMetadata(stageName, status, startTime, endTime, consoleLog) {
         consoleLog: consoleLog
     ]
 
-    METADATA.add(stepData)  // Append to the metadata list
+    metadataList.add(stepData)  // Append to the metadata list
 }
 
 // **Function to Send Final Metadata**
-def sendFinalMetadata() {
+def sendFinalMetadata(metadataList) {
     def finalMetadata = [
         metadata: [
             buildNumber: env.BUILD_NUMBER,
@@ -112,12 +119,12 @@ def sendFinalMetadata() {
             executorNumber: env.EXECUTOR_NUMBER ?: 'N/A',
             buildUrl: env.BUILD_URL
         ],
-        steps: METADATA
+        steps: metadataList
     ]
 
     def jsonString = JsonOutput.toJson(finalMetadata)  // Convert to valid JSON format
 
-    sh """curl -X POST ${API_URL} \
+    sh """curl -X POST ${env.API_URL} \
         -H "Content-Type: application/json" \
         -d '${jsonString.replaceAll("'", "\\'")}'"""  // Escape single quotes for shell compatibility
 }
