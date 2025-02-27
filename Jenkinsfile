@@ -1,17 +1,22 @@
 import groovy.json.JsonOutput
+import javax.crypto.Cipher
+import javax.crypto.spec.SecretKeySpec
+import java.util.Base64
 
 pipeline {
     agent any
 
     environment {
         API_URL = 'https://4ad2-2402-e280-3e1d-bce-6df3-1e62-d8d0-f624.ngrok-free.app/jenkins-metadata'
+        API_KEY = 'your-secret-api-key'  // 🔒 Store in Jenkins credentials (recommended)
+        ENCRYPTION_KEY = 'mySecretKey12345'  // 🔒 AES key (must be 16 characters)
     }
 
     stages {
         stage('Initialize Metadata') {
             steps {
                 script {
-                    METADATA = []  // Initialize the list inside script block
+                    METADATA = []  // Initialize metadata list
                 }
             }
         }
@@ -109,7 +114,16 @@ def appendStageMetadata(stageName, status, startTime, endTime, consoleLog, metad
     metadataList.add(stepData)  // Append to the metadata list
 }
 
-// **Function to Send Final Metadata**
+// **Function to Encrypt Data**
+def encryptMetadata(metadataJson, secretKey) {
+    def key = new SecretKeySpec(secretKey.getBytes(), "AES")
+    def cipher = Cipher.getInstance("AES")
+    cipher.init(Cipher.ENCRYPT_MODE, key)
+    def encryptedBytes = cipher.doFinal(metadataJson.getBytes("UTF-8"))
+    return Base64.encoder.encodeToString(encryptedBytes)
+}
+
+// **Function to Send Final Metadata Securely**
 def sendFinalMetadata(metadataList) {
     def finalMetadata = [
         metadata: [
@@ -123,8 +137,10 @@ def sendFinalMetadata(metadataList) {
     ]
 
     def jsonString = JsonOutput.toJson(finalMetadata)  // Convert to valid JSON format
+    def encryptedData = encryptMetadata(jsonString, env.ENCRYPTION_KEY)  // Encrypt JSON data
 
     sh """curl -X POST ${env.API_URL} \
         -H "Content-Type: application/json" \
-        -d '${jsonString.replaceAll("'", "\\'")}'"""  // Escape single quotes for shell compatibility
+        -H "x-api-key: ${env.API_KEY}" \
+        -d '{ "data": "${encryptedData}" }'"""  // Send encrypted data with API key
 }
