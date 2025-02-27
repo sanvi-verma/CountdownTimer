@@ -8,7 +8,7 @@ pipeline {
 
     environment {
         API_URL = ' https://dcd0-2402-e280-3e1d-bce-75de-6ae9-5635-1a8b.ngrok-free.app/jenkins-metadata'
-        API_KEY = 'your-secret-api-key'  // 🔒 Store in Jenkins credentials (recommended)
+        API_KEY = 'qteyew2537e3ygdhusdhd833'  // 🔒 Store in Jenkins credentials (recommended)
         ENCRYPTION_KEY = 'mySecretKey12345'  // 🔒 AES key (must be 16 characters)
     }
 
