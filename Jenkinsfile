@@ -115,39 +115,28 @@ pipeline {
 
 def sendMetadata(stageName, status, startTime, endTime) {
     def duration = endTime - startTime
-    def consoleLog = currentBuild.rawBuild.getLog(100).join("\n").replaceAll("\"", "'")
+    def buildNumber = env.BUILD_NUMBER
+    def jobName = env.JOB_NAME
+    def nodeName = env.NODE_NAME
+    def executorNumber = env.EXECUTOR_NUMBER ?: "N/A"
+    def buildUrl = env.BUILD_URL
+    def consoleLog = sh(script: "tail -n 100 ${env.WORKSPACE}/build.log || echo 'No log found'", returnStdout: true).trim()
 
-    def stepData = [
-        "stage"       : stageName,
-        "status"      : status,
-        "startTime"   : startTime.toString(),
-        "endTime"     : endTime.toString(),
-        "duration"    : duration.toString(),
-        "consoleLog"  : consoleLog
-    ]
-
-    def json = new groovy.json.JsonBuilder(stepData).toString()
-
-    sh """curl -X POST ${API_URL} \
-        -H "Content-Type: application/json" \
-        -d '${json}'"""
-}
-
-def sendFinalMetadata(pipelineStatus) {
-    def metadata = [
-        "metadata": [
-            "buildNumber"    : env.BUILD_NUMBER,
-            "jobName"        : env.JOB_NAME,
-            "nodeName"       : env.NODE_NAME,
-            "executorNumber" : env.EXECUTOR_NUMBER ?: "N/A",
-            "buildUrl"       : env.BUILD_URL
-        ],
-        "status": pipelineStatus
-    ]
-
-    def json = new groovy.json.JsonBuilder(metadata).toString()
+    def metadata = """{
+        "stage": "${stageName}",
+        "status": "${status}",
+        "startTime": "${startTime}",
+        "endTime": "${endTime}",
+        "duration": "${duration}",
+        "buildNumber": "${buildNumber}",
+        "jobName": "${jobName}",
+        "nodeName": "${nodeName}",
+        "executorNumber": "${executorNumber}",
+        "buildUrl": "${buildUrl}",
+        "consoleLog": "${consoleLog.replaceAll("\"", "'")}"
+    }"""
 
     sh """curl -X POST ${API_URL} \
         -H "Content-Type: application/json" \
-        -d '${json}'"""
+        -d '${metadata}'"""
 }
