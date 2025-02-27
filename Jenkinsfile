@@ -2,12 +2,13 @@ pipeline {
     agent any
 
     options {
-        timestamps()
-        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timestamps()  // Adds timestamps in logs
+        buildDiscarder(logRotator(numToKeepStr: '10'))  // Keep last 10 builds
     }
 
     environment {
         API_URL = 'https://4ad2-2402-e280-3e1d-bce-6df3-1e62-d8d0-f624.ngrok-free.app/jenkins-metadata'
+        METADATA = '{"metadata": {}, "steps": []}'  // Initialize metadata structure
     }
 
     stages {
@@ -18,29 +19,12 @@ pipeline {
                     try {
                         git branch: 'main', url: 'https://github.com/sanvi-verma/CountdownTimer.git'
                         def endTime = new Date().getTime()
-                        def logOutput = "Repository cloned successfully."
-                        appendStageMetadata("Clone Repository", "SUCCESS", startTime, endTime, logOutput)
+                        def consoleLog = getConsoleLog()
+                        appendStageMetadata("Clone Repository", "SUCCESS", startTime, endTime, consoleLog)
                     } catch (Exception e) {
                         def endTime = new Date().getTime()
-                        appendStageMetadata("Clone Repository", "FAILURE", startTime, endTime, e.toString())
-                        error("Stage failed: ${e}")
-                    }
-                }
-            }
-        }
-
-        stage('Set Up Environment') {
-            steps {
-                script {
-                    def startTime = new Date().getTime()
-                    try {
-                        echo 'Setting up environment...'
-                        sh 'npm install' // Example setup step
-                        def endTime = new Date().getTime()
-                        appendStageMetadata("Set Up Environment", "SUCCESS", startTime, endTime, "Environment setup complete.")
-                    } catch (Exception e) {
-                        def endTime = new Date().getTime()
-                        appendStageMetadata("Set Up Environment", "FAILURE", startTime, endTime, e.toString())
+                        def consoleLog = getConsoleLog()
+                        appendStageMetadata("Clone Repository", "FAILURE", startTime, endTime, consoleLog)
                         error("Stage failed: ${e}")
                     }
                 }
@@ -54,10 +38,12 @@ pipeline {
                     try {
                         echo 'Building the project...'
                         def endTime = new Date().getTime()
-                        appendStageMetadata("Build", "SUCCESS", startTime, endTime, "Build completed successfully.")
+                        def consoleLog = getConsoleLog()
+                        appendStageMetadata("Build", "SUCCESS", startTime, endTime, consoleLog)
                     } catch (Exception e) {
                         def endTime = new Date().getTime()
-                        appendStageMetadata("Build", "FAILURE", startTime, endTime, e.toString())
+                        def consoleLog = getConsoleLog()
+                        appendStageMetadata("Build", "FAILURE", startTime, endTime, consoleLog)
                         error("Stage failed: ${e}")
                     }
                 }
@@ -71,10 +57,12 @@ pipeline {
                     try {
                         echo 'Running tests...'
                         def endTime = new Date().getTime()
-                        appendStageMetadata("Test", "SUCCESS", startTime, endTime, "Tests passed.")
+                        def consoleLog = getConsoleLog()
+                        appendStageMetadata("Test", "SUCCESS", startTime, endTime, consoleLog)
                     } catch (Exception e) {
                         def endTime = new Date().getTime()
-                        appendStageMetadata("Test", "FAILURE", startTime, endTime, e.toString())
+                        def consoleLog = getConsoleLog()
+                        appendStageMetadata("Test", "FAILURE", startTime, endTime, consoleLog)
                         error("Stage failed: ${e}")
                     }
                 }
@@ -88,10 +76,12 @@ pipeline {
                     try {
                         echo 'Deploying the application...'
                         def endTime = new Date().getTime()
-                        appendStageMetadata("Deploy", "SUCCESS", startTime, endTime, "Deployment completed successfully.")
+                        def consoleLog = getConsoleLog()
+                        appendStageMetadata("Deploy", "SUCCESS", startTime, endTime, consoleLog)
                     } catch (Exception e) {
                         def endTime = new Date().getTime()
-                        appendStageMetadata("Deploy", "FAILURE", startTime, endTime, "Deployment failed.")
+                        def consoleLog = getConsoleLog()
+                        appendStageMetadata("Deploy", "FAILURE", startTime, endTime, consoleLog)
                         error("Stage failed: ${e}")
                     }
                 }
@@ -100,16 +90,22 @@ pipeline {
     }
 
     post {
-        always {
+        success {
             script {
-                sh """curl -X POST ${API_URL} \
-                    -H "Content-Type: application/json" \
-                    -d '${env.METADATA}'"""
+                sendFinalMetadata()
+                echo 'Pipeline executed successfully!'
+            }
+        }
+        failure {
+            script {
+                sendFinalMetadata()
+                echo 'Pipeline failed!'
             }
         }
     }
 }
 
+// **Function to Append Metadata in Correct Order**
 def appendStageMetadata(stageName, status, startTime, endTime, consoleLog) {
     def duration = endTime - startTime
     def newStep = """{
@@ -121,8 +117,33 @@ def appendStageMetadata(stageName, status, startTime, endTime, consoleLog) {
         "consoleLog": "${consoleLog.replaceAll("\"", "'")}"
     }"""
 
-    // Append new stage metadata at the end of the array instead of the beginning
-    env.METADATA = env.METADATA.replaceFirst('"steps": \\[', '"steps": [' + (env.METADATA.contains('"steps": []') ? newStep : env.METADATA.split('"steps": \\[')[1].replaceFirst(']', ', ' + newStep + ']')))
+    // Correcting order by appending at the end instead of beginning
+    if (env.METADATA.contains('"steps": []')) {
+        env.METADATA = env.METADATA.replace('"steps": []', '"steps": [' + newStep + ']')
+    } else {
+        env.METADATA = env.METADATA.replaceFirst('"steps": \\[', '"steps": [' + newStep + ', ')
+    }
 }
 
+// **Function to Send Final Metadata**
+def sendFinalMetadata() {
+    def metadata = """{
+        "metadata": {
+            "buildNumber": "${env.BUILD_NUMBER}",
+            "jobName": "${env.JOB_NAME}",
+            "nodeName": "${env.NODE_NAME}",
+            "executorNumber": "${env.EXECUTOR_NUMBER ?: 'N/A'}",
+            "buildUrl": "${env.BUILD_URL}"
+        },
+        ${env.METADATA.substring(env.METADATA.indexOf('"steps":'))}
+    }"""
+
+    sh """curl -X POST ${API_URL} \
+        -H "Content-Type: application/json" \
+        -d '${metadata}'"""
+}
+
+// **Function to Capture Console Logs**
+def getConsoleLog() {
+    return sh(script: "tail -n 20 \$(ls -t ${env.WORKSPACE}/logs/*.log | head -1) || echo 'No log found'", returnStdout: true).trim()
 }
