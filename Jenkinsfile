@@ -7,7 +7,7 @@ pipeline {
     }
 
     environment {
-        API_URL = '    https://4ad2-2402-e280-3e1d-bce-6df3-1e62-d8d0-f624.ngrok-free.app/jenkins-metadata'
+        API_URL = 'https://4ad2-2402-e280-3e1d-bce-6df3-1e62-d8d0-f624.ngrok-free.app/jenkins-metadata'
     }
 
     stages {
@@ -90,7 +90,7 @@ pipeline {
                     } catch (Exception e) {
                         def endTime = new Date().getTime()
                         sendMetadata("Deploy", "FAILURE", startTime, endTime)
-                        error("Stage failed: ${e}")
+                        error("Deployment failed due to missing config.")
                     }
                 }
             }
@@ -100,13 +100,13 @@ pipeline {
     post {
         success {
             script {
-                sendMetadata("Pipeline", "SUCCESS", 0, 0)
+                sendFinalMetadata("SUCCESS")
                 echo 'Pipeline executed successfully!'
             }
         }
         failure {
             script {
-                sendMetadata("Pipeline", "FAILURE", 0, 0)
+                sendFinalMetadata("FAILURE")
                 echo 'Pipeline failed!'
             }
         }
@@ -115,28 +115,39 @@ pipeline {
 
 def sendMetadata(stageName, status, startTime, endTime) {
     def duration = endTime - startTime
-    def buildNumber = env.BUILD_NUMBER
-    def jobName = env.JOB_NAME
-    def nodeName = env.NODE_NAME
-    def executorNumber = env.EXECUTOR_NUMBER ?: "N/A"
-    def buildUrl = env.BUILD_URL
-    def consoleLog = sh(script: "tail -n 100 ${env.WORKSPACE}/build.log || echo 'No log found'", returnStdout: true).trim()
+    def consoleLog = currentBuild.rawBuild.getLog(100).join("\n").replaceAll("\"", "'")
 
-    def metadata = """{
-        "stage": "${stageName}",
-        "status": "${status}",
-        "startTime": "${startTime}",
-        "endTime": "${endTime}",
-        "duration": "${duration}",
-        "buildNumber": "${buildNumber}",
-        "jobName": "${jobName}",
-        "nodeName": "${nodeName}",
-        "executorNumber": "${executorNumber}",
-        "buildUrl": "${buildUrl}",
-        "consoleLog": "${consoleLog.replaceAll("\"", "'")}"
-    }"""
+    def stepData = [
+        "stage"       : stageName,
+        "status"      : status,
+        "startTime"   : startTime.toString(),
+        "endTime"     : endTime.toString(),
+        "duration"    : duration.toString(),
+        "consoleLog"  : consoleLog
+    ]
+
+    def json = new groovy.json.JsonBuilder(stepData).toString()
 
     sh """curl -X POST ${API_URL} \
         -H "Content-Type: application/json" \
-        -d '${metadata}'"""
+        -d '${json}'"""
+}
+
+def sendFinalMetadata(pipelineStatus) {
+    def metadata = [
+        "metadata": [
+            "buildNumber"    : env.BUILD_NUMBER,
+            "jobName"        : env.JOB_NAME,
+            "nodeName"       : env.NODE_NAME,
+            "executorNumber" : env.EXECUTOR_NUMBER ?: "N/A",
+            "buildUrl"       : env.BUILD_URL
+        ],
+        "status": pipelineStatus
+    ]
+
+    def json = new groovy.json.JsonBuilder(metadata).toString()
+
+    sh """curl -X POST ${API_URL} \
+        -H "Content-Type: application/json" \
+        -d '${json}'"""
 }
