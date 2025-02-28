@@ -8,15 +8,15 @@ pipeline {
 
     environment {
         API_URL = ' https://dcd0-2402-e280-3e1d-bce-75de-6ae9-5635-1a8b.ngrok-free.app/jenkins-metadata'
-        API_KEY = 'qteyew2537e3ygdhusdhd833'  // 🔒 Store in Jenkins credentials (recommended)
-        ENCRYPTION_KEY = 'mySecretKey12345'  // 🔒 AES key (must be 16 characters)
+        API_KEY = 'qteyew2537e3ygdhusdhd833' 
+        ENCRYPTION_KEY = 'mySecretKey12345'  
     }
 
     stages {
         stage('Initialize Metadata') {
             steps {
                 script {
-                    METADATA = []  // Initialize metadata list
+                    METADATA = []  
                 }
             }
         }
@@ -99,7 +99,7 @@ pipeline {
     }
 }
 
-// **Function to Append Stage Metadata**
+// Function to Append Stage Metadata
 def appendStageMetadata(stageName, status, startTime, endTime, consoleLog, metadataList) {
     def duration = endTime - startTime
     def stepData = [
@@ -111,10 +111,10 @@ def appendStageMetadata(stageName, status, startTime, endTime, consoleLog, metad
         consoleLog: consoleLog
     ]
 
-    metadataList.add(stepData)  // Append to the metadata list
+    metadataList.add(stepData)  
 }
 
-// **Function to Encrypt Data**
+
 def encryptMetadata(metadataJson, secretKey) {
     def key = new SecretKeySpec(secretKey.getBytes(), "AES")
     def cipher = Cipher.getInstance("AES")
@@ -123,7 +123,6 @@ def encryptMetadata(metadataJson, secretKey) {
     return Base64.encoder.encodeToString(encryptedBytes)
 }
 
-// **Function to Send Final Metadata Securely**
 def sendFinalMetadata(metadataList) {
     def finalMetadata = [
         metadata: [
@@ -136,11 +135,11 @@ def sendFinalMetadata(metadataList) {
         steps: metadataList
     ]
 
-    def jsonString = JsonOutput.toJson(finalMetadata)  // Convert to valid JSON format
-    def encryptedData = encryptMetadata(jsonString, env.ENCRYPTION_KEY)  // Encrypt JSON data
+    def jsonString = JsonOutput.toJson(finalMetadata)  
+    def encryptedData = encryptMetadata(jsonString, env.ENCRYPTION_KEY) 
 
     sh """curl -X POST ${env.API_URL} \
         -H "Content-Type: application/json" \
         -H "x-api-key: ${env.API_KEY}" \
-        -d '{ "data": "${encryptedData}" }'"""  // Send encrypted data with API key
+        -d '{ "data": "${encryptedData}" }'""" 
 }
