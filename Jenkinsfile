@@ -8,7 +8,7 @@ pipeline {
 
     environment {
         JENKINS_URL = "http://localhost:8080"
-        API_URL = "https://your-api-endpoint.com/jenkins-metadata"
+        API_URL = "https://dcd0-2402-e280-3e1d-bce-75de-6ae9-5635-1a8b.ngrok-free.app/jenkins-metadata"
         API_KEY = "your_api_key"
         ENCRYPTION_KEY = "mySecretKey12345"
     }
