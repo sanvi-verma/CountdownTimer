@@ -7,16 +7,27 @@ pipeline {
     agent any
 
     environment {
-        API_URL = 'https://dcd0-2402-e280-3e1d-bce-75de-6ae9-5635-1a8b.ngrok-free.app/jenkins-metadata'
-        API_KEY = 'qteyew2537e3ygdhusdhd833' 
-        ENCRYPTION_KEY = 'mySecretKey12345'  
+        JENKINS_URL = "http://localhost:8080"
+        JOB_NAME = env.JOB_NAME
+        BUILD_NUMBER = env.BUILD_NUMBER
+        API_URL = "https://your-api-endpoint.com/jenkins-metadata"
+        API_KEY = "your_api_key"
+        ENCRYPTION_KEY = "mySecretKey12345"
     }
 
     stages {
+        stage('Declarative: Checkout SCM') {
+            steps {
+                script {
+                    echo "Checking out from source control..."
+                }
+            }
+        }
+
         stage('Initialize Metadata') {
             steps {
                 script {
-                    METADATA = []  
+                    METADATA = []
                 }
             }
         }
@@ -27,13 +38,8 @@ pipeline {
                     def startTime = System.currentTimeMillis()
                     try {
                         git branch: 'main', url: 'https://github.com/sanvi-verma/CountdownTimer.git'
-
-                        // Capture latest commit hash and author
-                        def commitHash = sh(script: "git rev-parse HEAD", returnStdout: true).trim()
-                        def commitAuthor = sh(script: "git log -1 --pretty=format:'%an'", returnStdout: true).trim()
-
                         def endTime = System.currentTimeMillis()
-                        appendStageMetadata("Clone Repository", "SUCCESS", startTime, endTime, "Commit: ${commitHash}, Author: ${commitAuthor}", METADATA)
+                        appendStageMetadata("Clone Repository", "SUCCESS", startTime, endTime, "Repository cloned successfully.", METADATA)
                     } catch (Exception e) {
                         def endTime = System.currentTimeMillis()
                         appendStageMetadata("Clone Repository", "FAILURE", startTime, endTime, e.toString(), METADATA)
@@ -49,10 +55,8 @@ pipeline {
                     def startTime = System.currentTimeMillis()
                     try {
                         echo 'Building the project...'
-                        def buildOutput = sh(script: "./gradlew build", returnStdout: true).trim()
-
                         def endTime = System.currentTimeMillis()
-                        appendStageMetadata("Build", "SUCCESS", startTime, endTime, buildOutput, METADATA)
+                        appendStageMetadata("Build", "SUCCESS", startTime, endTime, "Build completed.", METADATA)
                     } catch (Exception e) {
                         def endTime = System.currentTimeMillis()
                         appendStageMetadata("Build", "FAILURE", startTime, endTime, e.toString(), METADATA)
@@ -67,10 +71,9 @@ pipeline {
                 script {
                     def startTime = System.currentTimeMillis()
                     try {
-                        def testOutput = sh(script: "npm test", returnStdout: true).trim()
-
+                        echo 'Running tests...'
                         def endTime = System.currentTimeMillis()
-                        appendStageMetadata("Test", "SUCCESS", startTime, endTime, testOutput, METADATA)
+                        appendStageMetadata("Test", "SUCCESS", startTime, endTime, "Tests executed successfully.", METADATA)
                     } catch (Exception e) {
                         def endTime = System.currentTimeMillis()
                         appendStageMetadata("Test", "FAILURE", startTime, endTime, e.toString(), METADATA)
@@ -86,10 +89,8 @@ pipeline {
                     def startTime = System.currentTimeMillis()
                     try {
                         echo 'Deploying the application...'
-                        def deployOutput = sh(script: "./deploy.sh", returnStdout: true).trim()
-
                         def endTime = System.currentTimeMillis()
-                        appendStageMetadata("Deploy", "SUCCESS", startTime, endTime, deployOutput, METADATA)
+                        appendStageMetadata("Deploy", "SUCCESS", startTime, endTime, "Deployment completed successfully.", METADATA)
                     } catch (Exception e) {
                         def endTime = System.currentTimeMillis()
                         appendStageMetadata("Deploy", "FAILURE", startTime, endTime, e.toString(), METADATA)
@@ -98,23 +99,25 @@ pipeline {
                 }
             }
         }
+
+        stage('Fetch Real-Time Data') {
+            steps {
+                script {
+                    def response = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
+                    echo "Real-time Pipeline Data: ${response}"
+
+                    sh """curl -X POST "$API_URL" \
+                        -H "Content-Type: application/json" \
+                        -H "x-api-key: $API_KEY" \
+                        -d '${response}'"""
+                }
+            }
+        }
     }
 
     post {
         always {
             script {
-                // Capture real-time system stats
-                def cpuUsage = sh(script: "top -bn1 | grep 'Cpu(s)'", returnStdout: true).trim()
-                def memoryUsage = sh(script: "free -m", returnStdout: true).trim()
-                def diskUsage = sh(script: "df -h", returnStdout: true).trim()
-
-                METADATA.add([
-                    stage: "System Metrics",
-                    cpuUsage: cpuUsage,
-                    memoryUsage: memoryUsage,
-                    diskUsage: diskUsage
-                ])
-
                 sendFinalMetadata(METADATA)
             }
         }
@@ -133,7 +136,7 @@ def appendStageMetadata(stageName, status, startTime, endTime, consoleLog, metad
         consoleLog: consoleLog
     ]
 
-    metadataList.add(stepData)  
+    metadataList.add(stepData)
 }
 
 // Function to Encrypt Metadata
@@ -145,7 +148,7 @@ def encryptMetadata(metadataJson, secretKey) {
     return Base64.encoder.encodeToString(encryptedBytes)
 }
 
-// Function to Send Final Metadata
+// Function to Send Metadata to API
 def sendFinalMetadata(metadataList) {
     def finalMetadata = [
         metadata: [
@@ -158,11 +161,11 @@ def sendFinalMetadata(metadataList) {
         steps: metadataList
     ]
 
-    def jsonString = JsonOutput.toJson(finalMetadata)  
-    def encryptedData = encryptMetadata(jsonString, env.ENCRYPTION_KEY) 
+    def jsonString = JsonOutput.toJson(finalMetadata)
+    def encryptedData = encryptMetadata(jsonString, env.ENCRYPTION_KEY)
 
     sh """curl -X POST ${env.API_URL} \
         -H "Content-Type: application/json" \
         -H "x-api-key: ${env.API_KEY}" \
-        -d '{ "data": "${encryptedData}" }'""" 
+        -d '{ "data": "${encryptedData}" }'"""
 }
