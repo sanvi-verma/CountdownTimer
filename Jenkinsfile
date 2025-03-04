@@ -143,7 +143,7 @@ def appendStageMetadata(stageName, status, startTime, endTime, consoleLog, metad
 // Function to Encrypt Metadata
 def encryptMetadata(metadataJson, secretKey) {
     def key = new SecretKeySpec(secretKey.getBytes(), "AES")
-    def cipher = Cipher.getInstance("AES")
+    def cipher = Cipher.getInstance("AES/ECB/PKCS5Padding")
     cipher.init(Cipher.ENCRYPT_MODE, key)
     def encryptedBytes = cipher.doFinal(metadataJson.getBytes("UTF-8"))
     return Base64.encoder.encodeToString(encryptedBytes)
