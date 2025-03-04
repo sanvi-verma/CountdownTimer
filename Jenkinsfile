@@ -8,8 +8,6 @@ pipeline {
 
     environment {
         JENKINS_URL = "http://localhost:8080"
-        JOB_NAME = env.JOB_NAME
-        BUILD_NUMBER = env.BUILD_NUMBER
         API_URL = "https://your-api-endpoint.com/jenkins-metadata"
         API_KEY = "your_api_key"
         ENCRYPTION_KEY = "mySecretKey12345"
@@ -103,7 +101,10 @@ pipeline {
         stage('Fetch Real-Time Data') {
             steps {
                 script {
-                    def response = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
+                    def jobName = env.JOB_NAME ?: "unknown-job"
+                    def buildNumber = env.BUILD_NUMBER ?: "unknown-build"
+
+                    def response = sh(script: """curl -s -X GET "$JENKINS_URL/job/$jobName/$buildNumber/wfapi/describe" """, returnStdout: true).trim()
                     echo "Real-time Pipeline Data: ${response}"
 
                     sh """curl -X POST "$API_URL" \
@@ -152,11 +153,11 @@ def encryptMetadata(metadataJson, secretKey) {
 def sendFinalMetadata(metadataList) {
     def finalMetadata = [
         metadata: [
-            buildNumber: env.BUILD_NUMBER,
-            jobName: env.JOB_NAME,
-            nodeName: env.NODE_NAME,
+            buildNumber: env.BUILD_NUMBER ?: "unknown-build",
+            jobName: env.JOB_NAME ?: "unknown-job",
+            nodeName: env.NODE_NAME ?: "unknown-node",
             executorNumber: env.EXECUTOR_NUMBER ?: 'N/A',
-            buildUrl: env.BUILD_URL
+            buildUrl: env.BUILD_URL ?: "unknown-url"
         ],
         steps: metadataList
     ]
