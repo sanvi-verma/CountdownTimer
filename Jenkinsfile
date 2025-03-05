@@ -22,7 +22,6 @@ pipeline {
             }
         }
 
-
         stage('Clone Repository') {
             steps {
                 script {
@@ -107,14 +106,6 @@ pipeline {
             }
         }
     }
-
-    post {
-        always {
-            script {
-                sendFinalMetadata(METADATA)
-            }
-        }
-    }
 }
 
 // Function to Append Stage Metadata
@@ -129,24 +120,4 @@ def appendStageMetadata(stageName, status, startTime, endTime, consoleLog, metad
         consoleLog: consoleLog
     ]
     metadataList.add(stepData)
-}
-
-// Function to Send Metadata to API
-def sendFinalMetadata(metadataList) {
-    def finalMetadata = [
-        metadata: [
-            buildNumber: env.BUILD_NUMBER ?: "unknown-build",
-            jobName: env.JOB_NAME ?: "unknown-job",
-            nodeName: env.NODE_NAME ?: "unknown-node",
-            executorNumber: env.EXECUTOR_NUMBER ?: 'N/A',
-            buildUrl: env.BUILD_URL ?: "unknown-url"
-        ],
-        steps: metadataList
-    ]
-
-    def jsonString = JsonOutput.toJson(finalMetadata)
-
-    sh """curl -X POST ${env.API_URL} \
-        -H "Content-Type: application/json" \
-        -d '{ "data": ${jsonString} }'"""
 }
