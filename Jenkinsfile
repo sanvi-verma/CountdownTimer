@@ -14,14 +14,6 @@ pipeline {
     }
 
     stages {
-        stage('Declarative: Checkout SCM') {
-            steps {
-                script {
-                    echo "Checking out from source control..."
-                }
-            }
-        }
-
         stage('Initialize Metadata') {
             steps {
                 script {
