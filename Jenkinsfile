@@ -15,12 +15,22 @@ pipeline {
 
     stages {
         stage('Initialize Metadata') {
-            steps {
-                script {
-                    METADATA = []
-                }
-            }
+    steps {
+        script {
+            METADATA = [
+                metadata: [
+                    buildNumber: env.BUILD_NUMBER,
+                    jobName: env.JOB_NAME,
+                    nodeName: env.NODE_NAME,
+                    executorNumber: env.EXECUTOR_NUMBER,
+                    buildUrl: "${env.JENKINS_URL}/job/${env.JOB_NAME}/${env.BUILD_NUMBER}/"
+                ],
+                steps: []
+            ]
         }
+    }
+}
+
 
         stage('Clone Repository') {
             steps {
