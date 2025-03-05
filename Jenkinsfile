@@ -106,6 +106,14 @@ pipeline {
             }
         }
     }
+
+    post {
+        always {
+            script {
+                echo "Pipeline completed. Metadata collected: ${JsonOutput.prettyPrint(JsonOutput.toJson(METADATA))}"
+            }
+        }
+    }
 }
 
 // Function to Append Stage Metadata
