@@ -15,13 +15,12 @@ pipeline {
 
     stages {
         stage('Initialize Metadata') {
-    steps {
-        script {
-            METADATA = [],
-            ]
+            steps {
+                script {
+                    METADATA = []
+                }
+            }
         }
-    }
-}
 
 
         stage('Clone Repository') {
