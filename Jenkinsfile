@@ -18,7 +18,6 @@ pipeline {
     steps {
         script {
             METADATA = [],
-                steps: []
             ]
         }
     }
