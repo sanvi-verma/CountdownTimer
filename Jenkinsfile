@@ -1,6 +1,4 @@
 import groovy.json.JsonOutput
-import javax.crypto.Cipher
-import javax.crypto.spec.SecretKeySpec
 import java.util.Base64
 
 pipeline {
@@ -24,26 +22,70 @@ pipeline {
 
 
         stage('Clone Repository') {
-            steps{
-            echo "Cloning repo"
+            steps {
+                script {
+                    def startTime = System.currentTimeMillis()
+                    try {
+                        git branch: 'main', url: 'https://github.com/sanvi-verma/CountdownTimer.git'
+                        def endTime = System.currentTimeMillis()
+                        appendStageMetadata("Clone Repository", "SUCCESS", startTime, endTime, "Repository cloned successfully.", METADATA)
+                    } catch (Exception e) {
+                        def endTime = System.currentTimeMillis()
+                        appendStageMetadata("Clone Repository", "FAILURE", startTime, endTime, e.toString(), METADATA)
+                        error("Stage failed: ${e}")
+                    }
+                }
             }
         }
 
         stage('Build') {
             steps {
-                echo "Building"
+                script {
+                    def startTime = System.currentTimeMillis()
+                    try {
+                        echo 'Building the project...'
+                        def endTime = System.currentTimeMillis()
+                        appendStageMetadata("Build", "SUCCESS", startTime, endTime, "Build completed.", METADATA)
+                    } catch (Exception e) {
+                        def endTime = System.currentTimeMillis()
+                        appendStageMetadata("Build", "FAILURE", startTime, endTime, e.toString(), METADATA)
+                        error("Stage failed: ${e}")
+                    }
+                }
             }
         }
 
         stage('Test') {
             steps {
-                echo "Testing"
+                script {
+                    def startTime = System.currentTimeMillis()
+                    try {
+                        echo 'Running tests...'
+                        def endTime = System.currentTimeMillis()
+                        appendStageMetadata("Test", "SUCCESS", startTime, endTime, "Tests executed successfully.", METADATA)
+                    } catch (Exception e) {
+                        def endTime = System.currentTimeMillis()
+                        appendStageMetadata("Test", "FAILURE", startTime, endTime, e.toString(), METADATA)
+                        error("Stage failed: ${e}")
+                    }
+                }
             }
         }
 
         stage('Deploy') {
             steps {
-                echo "Deploying"
+                script {
+                    def startTime = System.currentTimeMillis()
+                    try {
+                        echo 'Deploying the application...'
+                        def endTime = System.currentTimeMillis()
+                        appendStageMetadata("Deploy", "SUCCESS", startTime, endTime, "Deployment completed successfully.", METADATA)
+                    } catch (Exception e) {
+                        def endTime = System.currentTimeMillis()
+                        appendStageMetadata("Deploy", "FAILURE", startTime, endTime, e.toString(), METADATA)
+                        error("Stage failed: ${e}")
+                    }
+                }
             }
         }
 
@@ -71,6 +113,20 @@ pipeline {
             }
         }
     }
+}
+
+// Function to Append Stage Metadata
+def appendStageMetadata(stageName, status, startTime, endTime, consoleLog, metadataList) {
+    def duration = endTime - startTime
+    def stepData = [
+        stage: stageName,
+        status: status,
+        startTime: startTime,
+        endTime: endTime,
+        duration: duration,
+        consoleLog: consoleLog
+    ]
+    metadataList.add(stepData)
 }
 
 // Function to Send Metadata to API
