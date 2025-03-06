@@ -37,33 +37,25 @@ pipeline {
                 script {
                     echo "Fetching Workflow Data from wfapi..."
 
-                    // Fetch pipeline metadata dynamically
-                    def pipelineData = sh(script: """curl -s "${env.BUILD_URL}wfapi/describe" """, returnStdout: true).trim()
-                    
-                    if (!pipelineData || pipelineData == "null") {
-                        error "Failed to fetch pipeline data!"
-                    }
+                    // Fetch Pipeline Data
+                    def workflowData = sh(script: """curl -s "${env.BUILD_URL}wfapi/describe" """, returnStdout: true).trim()
+                    if (!workflowData || workflowData == "null") { error "Failed to fetch wfapi data!" }
+                    echo "Extracted Workflow Data: ${workflowData}"
 
-                    echo "Extracted Pipeline Data: ${pipelineData}"
+                    // Fetch Changeset Data (Git Commits)
+                    def changeSets = sh(script: """curl -s "${env.BUILD_URL}wfapi/changesets" """, returnStdout: true).trim()
+                    echo "Extracted ChangeSets Data: ${changeSets}"
 
-                    // Fetch build metadata dynamically
-                    echo "Fetching Build Data..."
-                    def buildData = sh(script: """curl -s "${env.BUILD_URL}api/json?depth=1" """, returnStdout: true).trim()
-
-                    // Fetch Git data dynamically
-                    echo "Fetching Git Data..."
-                    def gitData = sh(script: """curl -s "${env.BUILD_URL}api/json?tree=changeSets[items[commitId,author[fullName],authorEmail,msg,date,paths[editType,file]]]" """, returnStdout: true).trim()
-
-                    // Create final payload dynamically
-                    def payloadJson = """{
-                        "pipeline": ${pipelineData},
-                        "build": ${buildData},
-                        "git": ${gitData}
+                    // Prepare JSON Payload
+                    def payload = """{
+                        "pipeline": ${workflowData},
+                        "git": ${changeSets}
                     }"""
 
-                    echo "Formatted Payload: ${payloadJson}"
+                    echo "Formatted Payload: ${payload}"
 
-                    def response = sh(script: """curl -s -o response.json -w "%{http_code}" -X POST "$API_URL" -H "Content-Type: application/json" --data '${payloadJson}'""", returnStdout: true).trim()
+                    // Send Data to API
+                    def response = sh(script: """curl -s -o response.json -w "%{http_code}" -X POST "$API_URL" -H "Content-Type: application/json" --data '${payload}'""", returnStdout: true).trim()
                     def httpStatus = response[-3..-1]
 
                     if (httpStatus != "200") {
