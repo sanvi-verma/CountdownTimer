@@ -42,61 +42,32 @@ pipeline {
         stage('Fetch Real-Time Data') {
             steps {
                 script {
-                    echo "Fetching Workflow Data from wfapi..."
-
                     // Fetch Pipeline Metadata
-                    def pipelineData = sh(script: """curl -s "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
-                    if (!pipelineData || pipelineData == "null") { error "Failed to fetch wfapi data!" }
-                    
-                    // Fetch Build Metadata
-                    def buildData = sh(script: """curl -s "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json?tree=number,result,timestamp,estimatedDuration,executor[node,executorUtilization],artifacts[url],url" """, returnStdout: true).trim()
-                    if (!buildData || buildData == "null") { error "Failed to fetch build metadata!" }
+                    def pipelineData = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
 
-                    // Fetch Git Metadata using wfapi
-                    def gitData = sh(script: """curl -s "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/changesets" """, returnStdout: true).trim()
-                    if (!gitData || gitData == "null") { gitData = '[]' }  // Handle empty changesets
+                    // Fetch Build Details (Git Info, Parameters, Environment)
+                    def buildData = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json?depth=1" """, returnStdout: true).trim()
 
-                    // Extract commit details
-                    def commits = []
-                    def repoUrl = ""
-                    def parsedGitData = readJSON(text: gitData)
+                    // Fetch Git Commit and Branch from Environment Variables
+                    def gitBranch = sh(script: 'echo $GIT_BRANCH', returnStdout: true).trim()
+                    def gitCommit = sh(script: 'echo $GIT_COMMIT', returnStdout: true).trim()
 
-                    if (parsedGitData && parsedGitData.size() > 0) {
-                        repoUrl = parsedGitData[0]?.url ?: ""
-                        parsedGitData.each { changeset ->
-                            changeset.commits.each { commitEntry ->
-                                commits << [
-                                    commitId: commitEntry.commitId,
-                                    commitUrl: repoUrl ? "${repoUrl}/commit/${commitEntry.commitId}" : "",
-                                    message: commitEntry.msg,
-                                    timestamp: commitEntry.timestamp,
-                                    consoleUrl: "$JENKINS_URL${commitEntry.consoleUrl}"
-                                ]
-                            }
+                    // Merge All Data into a Single JSON Object
+                    def payload = """{
+                        "pipelineData": ${pipelineData},
+                        "buildData": ${buildData},
+                        "git": {
+                            "branch": "${gitBranch}",
+                            "commit": "${gitCommit}"
                         }
-                    }
+                    }"""
 
-                    // Create final payload
-                    def payload = [
-                        pipeline: readJSON(text: pipelineData),
-                        build: readJSON(text: buildData),
-                        git: [
-                            repository: repoUrl,
-                            commits: commits
-                        ]
-                    ]
-
-                    echo "Formatted Payload: ${payload}"
+                    echo "Complete Metadata: ${payload}"
 
                     // Send Data to API
-                    def response = sh(script: """curl -s -o response.json -w "%{http_code}" -X POST "$API_URL" -H "Content-Type: application/json" --data '${groovy.json.JsonOutput.toJson(payload)}'""", returnStdout: true).trim()
-                    def httpStatus = response[-3..-1]
-
-                    if (httpStatus != "200") {
-                        error "Failed to send data to API, HTTP Status: ${httpStatus}"
-                    } else {
-                        echo "Data successfully sent to API."
-                    }
+                    sh """curl -X POST "$API_URL" \
+                        -H "Content-Type: application/json" \
+                        -d '${payload}'"""
                 }
             }
         }
