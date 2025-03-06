@@ -42,67 +42,32 @@ pipeline {
         stage('Fetch Real-Time Data') {
             steps {
                 script {
-                    // Fetch and parse pipeline metadata
-                    def pipelineRaw = sh(script: """curl -s "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/11358f54953188d436b2630fa8478bd79f/describe" """, returnStdout: true).trim()
-                    def pipelineJson = readJSON text: pipelineRaw
+                    // Fetch Pipeline Metadata
+                    def pipelineData = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
 
-                    // Fetch and parse build metadata
-                    def buildRaw = sh(script: """curl -s "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json?depth=1" """, returnStdout: true).trim()
-                    def buildJson = readJSON text: buildRaw
+                    // Fetch Build Details (Git Info, Parameters, Environment)
+                    def buildData = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json?depth=1" """, returnStdout: true).trim()
 
-                    // Extract Git Data
+                    // Fetch Git Commit and Branch from Environment Variables
                     def gitBranch = sh(script: 'echo $GIT_BRANCH', returnStdout: true).trim()
                     def gitCommit = sh(script: 'echo $GIT_COMMIT', returnStdout: true).trim()
 
-                    // **Extract only necessary fields**
-                    def formattedData = [
-                        pipeline: [
-                            id: buildJson.number,
-                            name: JOB_NAME,
-                            status: pipelineJson.status ?: "IN_PROGRESS",
-                            startTime: pipelineJson.startTimeMillis ?: buildJson.timestamp,
-                            endTime: pipelineJson.endTimeMillis ?: 0,
-                            duration: pipelineJson.durationMillis ?: 0,
-                            url: "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/",
-                            stages: pipelineJson.stages.collect { stage ->
-                                [
-                                    id: stage.id,
-                                    name: stage.name,
-                                    status: stage.status,
-                                    startTime: stage.startTimeMillis,
-                                    duration: stage.durationMillis
-                                ]
-                            }
-                        ],
-                        build: [
-                            buildNumber: buildJson.number,
-                            status: buildJson.result ?: "IN_PROGRESS",
-                            triggeredBy: buildJson.actions.find { it.causes }?.causes?.collect { cause ->
-                                [
-                                    userId: cause.userId ?: "unknown",
-                                    userName: cause.userName ?: "unknown"
-                                ]
-                            } ?: [],
-                            timestamp: buildJson.timestamp,
-                            duration: buildJson.duration ?: 0,
-                            estimatedDuration: buildJson.estimatedDuration ?: 0,
-                            artifactsUrl: "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/artifact",
-                            displayUrl: "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/pipeline-graph",
-                            testsUrl: "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/testReport"
-                        ],
-                        git: [
-                            branch: gitBranch ?: "unknown",
-                            commit: gitCommit ?: "unknown"
-                        ]
-                    ]
+                    // Merge All Data into a Single JSON Object
+                    def payload = """{
+                        "pipelineData": ${pipelineData},
+                        "buildData": ${buildData},
+                        "git": {
+                            "branch": "${gitBranch}",
+                            "commit": "${gitCommit}"
+                        }
+                    }"""
 
-                    // Convert structured data to JSON safely
-                    def jsonPayload = groovy.json.JsonOutput.toJson(formattedData)
+                    echo "Complete Metadata: ${payload}"
 
-                    // Send data to API
+                    // Send Data to API
                     sh """curl -X POST "$API_URL" \
                         -H "Content-Type: application/json" \
-                        -d '${jsonPayload}'"""
+                        -d '${payload}'"""
                 }
             }
         }
