@@ -57,7 +57,7 @@ pipeline {
                     // **Create a simple JSON structure to avoid circular references**
                     def formattedData = [
                         pipeline: [
-                            id: pipelineJson.id ?: buildJson.number,
+                            id: pipelineJson.id,
                             name: JOB_NAME,
                             status: pipelineJson.status ?: "IN_PROGRESS",
                             startTime: pipelineJson.startTimeMillis ?: buildJson.timestamp,
