@@ -43,7 +43,7 @@ pipeline {
             steps {
                 script {
                     // Fetch and parse pipeline metadata
-                    def pipelineRaw = sh(script: """curl -s "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
+                    def pipelineRaw = sh(script: """curl -s "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/11358f54953188d436b2630fa8478bd79f/describe" """, returnStdout: true).trim()
                     def pipelineJson = readJSON text: pipelineRaw
 
                     // Fetch and parse build metadata
