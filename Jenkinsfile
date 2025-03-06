@@ -45,24 +45,22 @@ pipeline {
                     // Fetch Pipeline Metadata
                     def pipelineData = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
 
-                    // Fetch Build Details (Git Info, Parameters, Environment)
+                    // Fetch Build Details
                     def buildData = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json?depth=1" """, returnStdout: true).trim()
 
-                    // Fetch Git Commit and Branch from Environment Variables
+                    // Fetch Git Data
                     def gitBranch = sh(script: 'echo $GIT_BRANCH', returnStdout: true).trim()
                     def gitCommit = sh(script: 'echo $GIT_COMMIT', returnStdout: true).trim()
+                    def gitData = """{ "branch": "${gitBranch}", "commit": "${gitCommit}" }"""
 
-                    // Merge All Data into a Single JSON Object
+                    // Create Payload
                     def payload = """{
-                        "pipelineData": ${pipelineData},
-                        "buildData": ${buildData},
-                        "git": {
-                            "branch": "${gitBranch}",
-                            "commit": "${gitCommit}"
-                        }
+                        "pipeline": ${pipelineData},
+                        "build": ${buildData},
+                        "git": ${gitData}
                     }"""
 
-                    echo "Complete Metadata: ${payload}"
+                    echo "Sending Data: ${payload}"
 
                     // Send Data to API
                     sh """curl -X POST "$API_URL" \
