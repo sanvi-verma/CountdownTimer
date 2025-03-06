@@ -39,75 +39,71 @@ pipeline {
             }
         }
 
-       stage('Fetch Real-Time Data') {
-    steps {
-        script {
-            try {
-                // Fetch pipeline metadata
-                def pipelineDataRaw = sh(script: """curl -s "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
-                def pipelineData = pipelineDataRaw ? readJSON(text: pipelineDataRaw) : [:]
+        stage('Fetch Real-Time Data') {
+            steps {
+                script {
+                    // Fetch Pipeline Metadata
+                    def pipelineData = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
+                    def pipelineJson = readJSON text: pipelineData
 
-                // Fetch build details
-                def buildDataRaw = sh(script: """curl -s "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json?depth=1" """, returnStdout: true).trim()
-                def buildData = buildDataRaw ? readJSON(text: buildDataRaw) : [:]
+                    // Fetch Build Details
+                    def buildData = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json?depth=1" """, returnStdout: true).trim()
+                    def buildJson = readJSON text: buildData
 
-                // Ensure all data is JSON-compatible (convert to maps)
-                def formattedPipelineData = pipelineData ? [
-                    id       : pipelineData.id?.toString() ?: "Unknown",
-                    name     : pipelineData.name ?: "Unknown",
-                    status   : pipelineData.status ?: "UNKNOWN",
-                    startTime: pipelineData.startTimeMillis ?: 0,
-                    endTime  : pipelineData.endTimeMillis ?: 0,
-                    duration : pipelineData.durationMillis ?: 0,
-                    url      : pipelineData.url ?: "Unknown",
-                    stages   : pipelineData.stages?.collect { stage ->
-                        [
-                            stage    : stage.name ?: "Unknown",
-                            status   : stage.status ?: "UNKNOWN",
-                            startTime: stage.startTimeMillis ?: 0,
-                            duration : stage.durationMillis ?: 0
+                    // Fetch Git Data
+                    def gitBranch = sh(script: 'echo $GIT_BRANCH', returnStdout: true).trim()
+                    def gitCommit = sh(script: 'echo $GIT_COMMIT', returnStdout: true).trim()
+
+                    // Format JSON Output
+                    def formattedData = [
+                        pipeline: [
+                            id: pipelineJson.id,
+                            name: pipelineJson.name,
+                            status: pipelineJson.status,
+                            startTime: pipelineJson.startTimeMillis,
+                            endTime: pipelineJson.endTimeMillis ?: 0,
+                            duration: pipelineJson.durationMillis,
+                            url: pipelineJson._links.self.href,
+                            stages: pipelineJson.stages.collect { stage ->
+                                [
+                                    stage: stage.name,
+                                    status: stage.status,
+                                    startTime: stage.startTimeMillis,
+                                    endTime: stage.endTimeMillis ?: 0,
+                                    duration: stage.durationMillis
+                                ]
+                            }
+                        ],
+                        build: [
+                            buildNumber: buildJson.number,
+                            status: buildJson.result ?: "IN_PROGRESS",
+                            triggeredBy: [
+                                userId: buildJson.actions.find { it.causes }?.causes[0]?.userId ?: "unknown",
+                                userName: buildJson.actions.find { it.causes }?.causes[0]?.userName ?: "unknown"
+                            ],
+                            timestamp: buildJson.timestamp,
+                            duration: buildJson.duration ?: 0,
+                            estimatedDuration: buildJson.estimatedDuration,
+                            executor: [
+                                node: buildJson.builtOn ?: "built-in",
+                                executorUtilization: 1 // Assuming full utilization
+                            ],
+                            artifactsUrl: "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/artifact",
+                            displayUrl: "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/pipeline-graph",
+                            testsUrl: "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/testReport"
+                        ],
+                        git: [
+                            message: gitBranch ? "Git data available" : "No git data available"
                         ]
-                    } ?: []
-                ] : [:]
+                    ]
 
-                def formattedBuildData = buildData ? [
-                    buildNumber       : buildData.number?.toString() ?: "Unknown",
-                    status           : buildData.result ?: "IN_PROGRESS",
-                    timestamp        : buildData.timestamp ?: 0,
-                    duration         : buildData.duration ?: 0,
-                    estimatedDuration: buildData.estimatedDuration ?: 0,
-                    executor         : [
-                        node : buildData.builtOn ?: "built-in"
-                    ],
-                    artifactsUrl     : buildData.artifacts?.size() > 0 ? buildData.artifacts[0].url : "Unknown",
-                    displayUrl       : buildData.url ?: "Unknown",
-                    testsUrl         : buildData.url ? "${buildData.url}testReport" : "Unknown"
-                ] : [:]
-
-                def jsonPayload = [
-                    pipeline: formattedPipelineData,
-                    build   : formattedBuildData,
-                    git     : [ message: "No git data available" ]
-                ]
-
-                // Convert to safe JSON
-                def jsonString = groovy.json.JsonOutput.toJson(jsonPayload)
-                def safeJsonString = groovy.json.JsonOutput.prettyPrint(jsonString)
-
-                // Print & Send Data
-                echo "Complete Metadata:\n${safeJsonString}"
-                sh """curl -X POST "$API_URL" \
-                    -H "Content-Type: application/json" \
-                    -d '${jsonString.replace("'", "\\'")}'""" // Escape single quotes
-
-            } catch (Exception e) {
-                echo "❌ ERROR: ${e.getMessage()}"
-                echo "STACK TRACE: ${e}"
+                    // Convert to JSON and Send to API
+                    def jsonPayload = groovy.json.JsonOutput.toJson(formattedData)
+                    sh """curl -X POST "$API_URL" \
+                        -H "Content-Type: application/json" \
+                        -d '${jsonPayload}'"""
+                }
             }
         }
-    }
-}
-
-
     }
 }
