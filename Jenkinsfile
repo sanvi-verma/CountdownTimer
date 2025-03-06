@@ -37,19 +37,27 @@ pipeline {
                 script {
                     echo "Fetching Workflow Data from wfapi..."
 
+                    // Ensure BUILD_URL ends with a slash
+                    def jenkinsBaseUrl = env.BUILD_URL.endsWith("/") ? env.BUILD_URL : env.BUILD_URL + "/"
+
+                    // Construct API URLs dynamically
+                    def wfapiUrl = "${jenkinsBaseUrl}wfapi/describe"
+                    def buildApiUrl = "${jenkinsBaseUrl}api/json?tree=number,result,timestamp,estimatedDuration,executor[node,executorUtilization],artifacts[url],url"
+                    def changeSetsUrl = "${jenkinsBaseUrl}wfapi/changesets"
+
                     // Fetch Pipeline Data from wfapi
-                    def workflowData = sh(script: """curl -s "${env.BUILD_URL}wfapi/describe" """, returnStdout: true).trim()
-                    if (!workflowData || workflowData == "null") { error "Failed to fetch wfapi data!" }
+                    def workflowData = sh(script: """curl -s "$wfapiUrl" """, returnStdout: true).trim()
+                    if (!workflowData || workflowData == "null" || workflowData.isEmpty()) { error "Failed to fetch wfapi data!" }
                     echo "Extracted Workflow Data: ${workflowData}"
 
                     // Fetch Build Metadata
-                    def buildData = sh(script: """curl -s "${env.BUILD_URL}api/json?tree=number,result,timestamp,estimatedDuration,executor[node,executorUtilization],artifacts[url],url" """, returnStdout: true).trim()
-                    if (!buildData || buildData == "null") { error "Failed to fetch build metadata!" }
+                    def buildData = sh(script: """curl -s "$buildApiUrl" """, returnStdout: true).trim()
+                    if (!buildData || buildData == "null" || buildData.isEmpty()) { error "Failed to fetch build metadata!" }
                     echo "Extracted Build Data: ${buildData}"
 
                     // Fetch Git Metadata using wfapi
-                    def changeSets = sh(script: """curl -s "${env.BUILD_URL}wfapi/changesets" """, returnStdout: true).trim()
-                    if (!changeSets || changeSets == "null") { error "Failed to fetch Git data!" }
+                    def changeSets = sh(script: """curl -s "$changeSetsUrl" """, returnStdout: true).trim()
+                    if (!changeSets || changeSets == "null" || changeSets.isEmpty()) { error "Failed to fetch Git data!" }
                     echo "Extracted Git ChangeSets: ${changeSets}"
 
                     // Prepare JSON Payload
