@@ -6,12 +6,10 @@ pipeline {
     environment {
         JENKINS_URL = "http://localhost:8080"
         API_URL = "https://2cf9-2402-e280-3e1d-bce-2584-894f-4e39-6c7c.ngrok-free.app/jenkins-metadata"
-        API_KEY = "qteyew2537e3ygdhusdhd833"
-        ENCRYPTION_KEY = "mySecretKey12345"
     }
 
     stages {
-        stage('Declarative: Checkout SCM') {
+        stage('Checkout SCM') {
             steps {
                 script {
                     echo "Checking out from source control..."
@@ -106,7 +104,6 @@ pipeline {
 
                     sh """curl -X POST "$API_URL" \
                         -H "Content-Type: application/json" \
-                        -H "x-api-key: $API_KEY" \
                         -d '${response}'"""
                 }
             }
@@ -137,15 +134,6 @@ def appendStageMetadata(stageName, status, startTime, endTime, consoleLog, metad
     metadataList.add(stepData)
 }
 
-// Function to Encrypt Metadata
-def encryptMetadata(metadataJson, secretKey) {
-    def key = new SecretKeySpec(secretKey.getBytes(), "AES")
-    def cipher = Cipher.getInstance("AES/ECB/PKCS5Padding")
-    cipher.init(Cipher.ENCRYPT_MODE, key)
-    def encryptedBytes = cipher.doFinal(metadataJson.getBytes("UTF-8"))
-    return Base64.encoder.encodeToString(encryptedBytes)
-}
-
 // Function to Send Metadata to API
 def sendFinalMetadata(metadataList) {
     def finalMetadata = [
@@ -160,10 +148,8 @@ def sendFinalMetadata(metadataList) {
     ]
 
     def jsonString = JsonOutput.toJson(finalMetadata)
-    def encryptedData = encryptMetadata(jsonString, env.ENCRYPTION_KEY)
 
     sh """curl -X POST ${env.API_URL} \
         -H "Content-Type: application/json" \
-        -H "x-api-key: ${env.API_KEY}" \
-        -d '{ "data": "${encryptedData}" }'"""
+        -d '${jsonString}'"""
 }
