@@ -32,13 +32,6 @@ pipeline {
             }
         }
 
-        stage('Debug BUILD_URL') {
-    steps {
-        script {
-            echo "BUILD_URL is: ${env.BUILD_URL}"
-        }
-    }
-}
 
 
         stage('Fetch Real-Time Data') {
