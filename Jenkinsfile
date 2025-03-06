@@ -42,12 +42,32 @@ pipeline {
         stage('Fetch Real-Time Data') {
             steps {
                 script {
-                    def response = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
-                    echo "Real-time Pipeline Data: ${response}"
+                    // Fetch Pipeline Metadata
+                    def pipelineData = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
 
+                    // Fetch Build Details (Git Info, Parameters, Environment)
+                    def buildData = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json?depth=1" """, returnStdout: true).trim()
+
+                    // Fetch Git Commit and Branch from Environment Variables
+                    def gitBranch = sh(script: 'echo $GIT_BRANCH', returnStdout: true).trim()
+                    def gitCommit = sh(script: 'echo $GIT_COMMIT', returnStdout: true).trim()
+
+                    // Merge All Data into a Single JSON Object
+                    def payload = """{
+                        "pipelineData": ${pipelineData},
+                        "buildData": ${buildData},
+                        "git": {
+                            "branch": "${gitBranch}",
+                            "commit": "${gitCommit}"
+                        }
+                    }"""
+
+                    echo "Complete Metadata: ${payload}"
+
+                    // Send Data to API
                     sh """curl -X POST "$API_URL" \
                         -H "Content-Type: application/json" \
-                        -d '${response}'"""
+                        -d '${payload}'"""
                 }
             }
         }
