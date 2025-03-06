@@ -42,28 +42,28 @@ pipeline {
         stage('Fetch Real-Time Data') {
             steps {
                 script {
-                    // Fetch Pipeline Metadata
-                    def pipelineData = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
-                    def pipelineJson = readJSON text: pipelineData
+                    // Fetch and parse pipeline metadata
+                    def pipelineRaw = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
+                    def pipelineJson = readJSON text: pipelineRaw
 
-                    // Fetch Build Details
-                    def buildData = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json?depth=1" """, returnStdout: true).trim()
-                    def buildJson = readJSON text: buildData
+                    // Fetch and parse build metadata
+                    def buildRaw = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json?depth=1" """, returnStdout: true).trim()
+                    def buildJson = readJSON text: buildRaw
 
-                    // Fetch Git Data
+                    // Extract Git Data
                     def gitBranch = sh(script: 'echo $GIT_BRANCH', returnStdout: true).trim()
                     def gitCommit = sh(script: 'echo $GIT_COMMIT', returnStdout: true).trim()
 
-                    // Format JSON Output
+                    // **Create a simple JSON structure to avoid circular references**
                     def formattedData = [
                         pipeline: [
-                            id: pipelineJson.id,
-                            name: pipelineJson.name,
-                            status: pipelineJson.status,
-                            startTime: pipelineJson.startTimeMillis,
+                            id: pipelineJson.id ?: buildJson.number,
+                            name: JOB_NAME,
+                            status: pipelineJson.status ?: "IN_PROGRESS",
+                            startTime: pipelineJson.startTimeMillis ?: buildJson.timestamp,
                             endTime: pipelineJson.endTimeMillis ?: 0,
-                            duration: pipelineJson.durationMillis,
-                            url: pipelineJson._links.self.href,
+                            duration: pipelineJson.durationMillis ?: 0,
+                            url: "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/",
                             stages: pipelineJson.stages.collect { stage ->
                                 [
                                     stage: stage.name,
@@ -86,7 +86,7 @@ pipeline {
                             estimatedDuration: buildJson.estimatedDuration,
                             executor: [
                                 node: buildJson.builtOn ?: "built-in",
-                                executorUtilization: 1 // Assuming full utilization
+                                executorUtilization: 1
                             ],
                             artifactsUrl: "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/artifact",
                             displayUrl: "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/pipeline-graph",
@@ -97,8 +97,10 @@ pipeline {
                         ]
                     ]
 
-                    // Convert to JSON and Send to API
+                    // Convert structured data to JSON safely
                     def jsonPayload = groovy.json.JsonOutput.toJson(formattedData)
+
+                    // Send data to API
                     sh """curl -X POST "$API_URL" \
                         -H "Content-Type: application/json" \
                         -d '${jsonPayload}'"""
