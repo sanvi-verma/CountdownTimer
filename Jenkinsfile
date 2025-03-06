@@ -44,15 +44,15 @@ pipeline {
                 script {
                     // Fetch pipeline data
                     def pipelineDataRaw = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
-                    def pipelineData = readJSON(text: pipelineDataRaw)
+                    def pipelineData = pipelineDataRaw ? readJSON(text: pipelineDataRaw) : [:]
 
                     // Fetch build data
                     def buildDataRaw = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json?depth=1" """, returnStdout: true).trim()
-                    def buildData = readJSON(text: buildDataRaw)
+                    def buildData = buildDataRaw ? readJSON(text: buildDataRaw) : [:]
 
                     // Get Git branch and commit
-                    def gitBranch = sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
-                    def gitCommit = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
+                    def gitBranch = sh(script: 'git rev-parse --abbrev-ref HEAD || echo "Unknown"', returnStdout: true).trim()
+                    def gitCommit = sh(script: 'git rev-parse HEAD || echo "Unknown"', returnStdout: true).trim()
 
                     // Normalize pipeline stages
                     def formattedStages = pipelineData?.stages?.collect { stage ->
@@ -79,7 +79,7 @@ pipeline {
 
                     // Format build data
                     def formattedBuild = [
-                        buildNumber        : buildData?.number ?: "Unknown",
+                        buildNumber        : buildData?.number?.toString() ?: "Unknown",
                         status            : buildData?.result ?: "UNKNOWN",
                         triggeredBy       : [
                             userId  : buildData?.actions?.find { it.causes }?.causes?.first()?.userId ?: "unknown",
@@ -103,22 +103,21 @@ pipeline {
                     ]
 
                     // Construct final JSON
-                    def jsonPayload = groovy.json.JsonOutput.toJson([
+                    def jsonPayload = [
                         pipeline: formattedPipeline,
                         build   : formattedBuild,
                         git     : formattedGit
-                    ])
+                    ]
 
                     // Print JSON
-                    echo "Complete Metadata: ${groovy.json.JsonOutput.prettyPrint(jsonPayload)}"
+                    echo "Complete Metadata: ${groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(jsonPayload))}"
 
                     // Send JSON to API
                     sh """curl -X POST "$API_URL" \
                         -H "Content-Type: application/json" \
-                        -d '${jsonPayload}'"""
+                        -d '${groovy.json.JsonOutput.toJson(jsonPayload)}'"""
                 }
             }
         }
     }
 }
-
