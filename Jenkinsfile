@@ -46,13 +46,10 @@ pipeline {
                     def buildNumber = env.BUILD_NUMBER
 
                     // Fetch Pipeline Data (Stages, Status)
-                    def pipelineData = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/wfapi/describe" | jq -c '.' """, returnStdout: true).trim()
-                    
-                    // Fetch Build Metadata (User, Execution Details)
-                    def buildData = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/api/json?depth=1" | jq -c '.' """, returnStdout: true).trim()
+                   def pipelineData = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/wfapi/describe" """, returnStdout: true).trim()
+def buildData = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/api/json?depth=1" """, returnStdout: true).trim()
+def gitData = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/wfapi/changesets" """, returnStdout: true).trim()
 
-                    // Fetch Git Details (Commit, Branch, Repo)
-                    def gitData = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/wfapi/changesets" | jq -c '.' """, returnStdout: true).trim()
 
                     // Ensure JSON format is valid and avoid escape issues
                     def payload = """{
