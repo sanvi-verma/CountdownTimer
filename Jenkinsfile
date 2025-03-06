@@ -39,37 +39,55 @@ pipeline {
             }
         }
 
-        stage('Fetch Real-Time Data') {
-            steps {
-                script {
-                    // Fetch Pipeline Metadata
-                    def pipelineData = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
+       stage('Fetch Real-Time Data') {
+    steps {
+        script {
+            echo "Fetching Workflow Data from wfapi..."
 
-                    // Fetch Build Details (Git Info, Parameters, Environment)
-                    def buildData = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json?depth=1" """, returnStdout: true).trim()
+            // Fetch Workflow Data from wfapi
+            def pipelineData = sh(script: """curl -s "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
+            if (!pipelineData || pipelineData == "null") { error "Failed to fetch wfapi data!" }
+            echo "Extracted Pipeline Data: ${pipelineData}"
 
-                    // Fetch Git Commit and Branch from Environment Variables
-                    def gitBranch = sh(script: 'echo $GIT_BRANCH', returnStdout: true).trim()
-                    def gitCommit = sh(script: 'echo $GIT_COMMIT', returnStdout: true).trim()
+            // Fetch Build Metadata from Jenkins API
+            def buildData = sh(script: """curl -s "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json?tree=number,result,timestamp,estimatedDuration,executor[node,executorUtilization],artifacts[url],url" """, returnStdout: true).trim()
+            if (!buildData || buildData == "null") { error "Failed to fetch build metadata!" }
+            echo "Extracted Build Data: ${buildData}"
 
-                    // Merge All Data into a Single JSON Object
-                    def payload = """{
-                        "pipelineData": ${pipelineData},
-                        "buildData": ${buildData},
-                        "git": {
-                            "branch": "${gitBranch}",
-                            "commit": "${gitCommit}"
-                        }
-                    }"""
+            // Fetch Git Metadata (Branch, Commit, Changes)
+            def changeSetsData = sh(script: """curl -s "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/changesets" """, returnStdout: true).trim()
+            if (!changeSetsData || changeSetsData == "null") { error "Failed to fetch Git data!" }
+            echo "Extracted Git ChangeSets: ${changeSetsData}"
 
-                    echo "Complete Metadata: ${payload}"
+            // Extract Git Branch and Commit from changesets JSON
+            def gitData = readJSON(text: changeSetsData)
+            def gitBranch = gitData[0]?.branch ?: "unknown"
+            def gitCommit = gitData[0]?.commitId ?: "unknown"
 
-                    // Send Data to API
-                    sh """curl -X POST "$API_URL" \
-                        -H "Content-Type: application/json" \
-                        -d '${payload}'"""
+            // Merge All Data into a Single JSON Object
+            def payload = """{
+                "pipeline": ${pipelineData},
+                "build": ${buildData},
+                "git": {
+                    "branch": "${gitBranch}",
+                    "commit": "${gitCommit}",
+                    "changes": ${changeSetsData}
                 }
+            }"""
+
+            echo "Complete Metadata: ${payload}"
+
+            // Send Data to API
+            def response = sh(script: """curl -s -o response.json -w "%{http_code}" -X POST "$API_URL" -H "Content-Type: application/json" --data '${payload}'""", returnStdout: true).trim()
+            def httpStatus = response[-3..-1]
+
+            if (httpStatus != "200") {
+                error "Failed to send data to API, HTTP Status: ${httpStatus}"
+            } else {
+                echo "Data successfully sent to API."
             }
         }
     }
+}
+
 }
