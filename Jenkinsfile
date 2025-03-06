@@ -40,16 +40,21 @@ pipeline {
                     // Fetch Pipeline Data
                     def workflowData = sh(script: """curl -s "${env.BUILD_URL}wfapi/describe" """, returnStdout: true).trim()
                     if (!workflowData || workflowData == "null") { error "Failed to fetch wfapi data!" }
-                    echo "Extracted Workflow Data: ${workflowData}"
-
-                    // Fetch Changeset Data (Git Commits)
+                    
+                    // Fetch Build Data
+                    def buildData = sh(script: """curl -s "${env.BUILD_URL}api/json?tree=number,result,timestamp,estimatedDuration,executor[node,executorUtilization],artifacts[url]" """, returnStdout: true).trim()
+                    
+                    // Fetch Git Data (Changesets)
                     def changeSets = sh(script: """curl -s "${env.BUILD_URL}wfapi/changesets" """, returnStdout: true).trim()
-                    echo "Extracted ChangeSets Data: ${changeSets}"
 
-                    // Prepare JSON Payload
+                    // Format Git Data
+                    def gitData = changeSets.startsWith("[") ? changeSets : "[]"
+
+                    // Construct JSON Payload
                     def payload = """{
                         "pipeline": ${workflowData},
-                        "git": ${changeSets}
+                        "build": ${buildData},
+                        "git": ${gitData}
                     }"""
 
                     echo "Formatted Payload: ${payload}"
