@@ -43,21 +43,21 @@ pipeline {
             steps {
                 script {
                     // Fetch and parse pipeline metadata
-                    def pipelineRaw = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
+                    def pipelineRaw = sh(script: """curl -s "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
                     def pipelineJson = readJSON text: pipelineRaw
 
                     // Fetch and parse build metadata
-                    def buildRaw = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json?depth=1" """, returnStdout: true).trim()
+                    def buildRaw = sh(script: """curl -s "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json?depth=1" """, returnStdout: true).trim()
                     def buildJson = readJSON text: buildRaw
 
                     // Extract Git Data
                     def gitBranch = sh(script: 'echo $GIT_BRANCH', returnStdout: true).trim()
                     def gitCommit = sh(script: 'echo $GIT_COMMIT', returnStdout: true).trim()
 
-                    // **Create a simple JSON structure to avoid circular references**
+                    // **Extract only necessary fields**
                     def formattedData = [
                         pipeline: [
-                            id: pipelineJson.id,
+                            id: buildJson.number,
                             name: JOB_NAME,
                             status: pipelineJson.status ?: "IN_PROGRESS",
                             startTime: pipelineJson.startTimeMillis ?: buildJson.timestamp,
@@ -83,7 +83,7 @@ pipeline {
                             ],
                             timestamp: buildJson.timestamp,
                             duration: buildJson.duration ?: 0,
-                            estimatedDuration: buildJson.estimatedDuration,
+                            estimatedDuration: buildJson.estimatedDuration ?: 0,
                             executor: [
                                 node: buildJson.builtOn ?: "built-in",
                                 executorUtilization: 1
@@ -93,7 +93,8 @@ pipeline {
                             testsUrl: "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/testReport"
                         ],
                         git: [
-                            message: gitBranch ? "Git data available" : "No git data available"
+                            branch: gitBranch ?: "unknown",
+                            commit: gitCommit ?: "unknown"
                         ]
                     ]
 
