@@ -52,11 +52,12 @@ def gitData = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/api/
 
 
                     // Ensure JSON format is valid and avoid escape issues
-                    def payload = """{
-                        "pipelineData": ${pipelineData},
-                        "buildData": ${buildData},
-                        "gitData": ${gitData}
-                    }"""
+                   def payload = """{
+    "pipelineData": ${pipelineData ?: '{}'},
+    "buildData": ${buildData ?: '{}'},
+    "gitData": ${gitData ?: '[]'}
+}"""
+
 
                     echo "Sending formatted pipeline metadata: ${payload}"
 
