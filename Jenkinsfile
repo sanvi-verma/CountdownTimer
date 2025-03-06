@@ -38,8 +38,8 @@ pipeline {
                 }
             }
         }
-
-        stage('Fetch Real-Time Data') {
+        stage('Fetch Real-Time Data') 
+        {
             steps {
                 script {
                     def jobName = env.JOB_NAME
@@ -62,7 +62,6 @@ pipeline {
                     }"""
 
                     echo "Sending formatted pipeline metadata: ${payload}"
-
                     // Send the data to your API
                     sh """curl -X POST "$API_URL" \
                         -H "Content-Type: application/json" \
