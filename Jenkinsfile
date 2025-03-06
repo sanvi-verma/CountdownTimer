@@ -66,10 +66,10 @@ pipeline {
                             url: "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/",
                             stages: pipelineJson.stages.collect { stage ->
                                 [
-                                    stage: stage.name,
+                                    id: stage.id,
+                                    name: stage.name,
                                     status: stage.status,
                                     startTime: stage.startTimeMillis,
-                                    endTime: stage.endTimeMillis ?: 0,
                                     duration: stage.durationMillis
                                 ]
                             }
@@ -77,17 +77,15 @@ pipeline {
                         build: [
                             buildNumber: buildJson.number,
                             status: buildJson.result ?: "IN_PROGRESS",
-                            triggeredBy: [
-                                userId: buildJson.actions.find { it.causes }?.causes[0]?.userId ?: "unknown",
-                                userName: buildJson.actions.find { it.causes }?.causes[0]?.userName ?: "unknown"
-                            ],
+                            triggeredBy: buildJson.actions.find { it.causes }?.causes?.collect { cause ->
+                                [
+                                    userId: cause.userId ?: "unknown",
+                                    userName: cause.userName ?: "unknown"
+                                ]
+                            } ?: [],
                             timestamp: buildJson.timestamp,
                             duration: buildJson.duration ?: 0,
                             estimatedDuration: buildJson.estimatedDuration ?: 0,
-                            executor: [
-                                node: buildJson.builtOn ?: "built-in",
-                                executorUtilization: 1
-                            ],
                             artifactsUrl: "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/artifact",
                             displayUrl: "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/pipeline-graph",
                             testsUrl: "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/testReport"
