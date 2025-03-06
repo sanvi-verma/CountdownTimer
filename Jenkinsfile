@@ -10,7 +10,7 @@ pipeline {
         stage('Clone Repository') {
             steps {
                 script {
-                    git branch: 'main', url: 'https://github.com/sanvi-verma/CountdownTimer/Jenkinsfile.git'
+                    git branch: 'main', url: 'https://github.com/sanvi-verma/CountdownTimer.git'
                 }
             }
         }
