@@ -1,5 +1,3 @@
-import groovy.json.JsonOutput
-
 pipeline {
     agent any
 
@@ -9,21 +7,10 @@ pipeline {
     }
 
     stages {
-        stage('Checkout SCM') {
-            steps {
-                script {
-                    echo "Checking out from source control..."
-                }
-            }
-        }
-
         stage('Clone Repository') {
             steps {
                 script {
-                    def startTime = System.currentTimeMillis()
                     git branch: 'main', url: 'https://github.com/sanvi-verma/CountdownTimer.git'
-                    def endTime = System.currentTimeMillis()
-                    echo "Repository cloned successfully in ${endTime - startTime} ms"
                 }
             }
         }
@@ -31,10 +18,7 @@ pipeline {
         stage('Build') {
             steps {
                 script {
-                    def startTime = System.currentTimeMillis()
                     echo 'Building the project...'
-                    def endTime = System.currentTimeMillis()
-                    echo "Build completed in ${endTime - startTime} ms"
                 }
             }
         }
@@ -42,10 +26,7 @@ pipeline {
         stage('Test') {
             steps {
                 script {
-                    def startTime = System.currentTimeMillis()
                     echo 'Running tests...'
-                    def endTime = System.currentTimeMillis()
-                    echo "Tests executed successfully in ${endTime - startTime} ms"
                 }
             }
         }
@@ -53,10 +34,7 @@ pipeline {
         stage('Deploy') {
             steps {
                 script {
-                    def startTime = System.currentTimeMillis()
                     echo 'Deploying the application...'
-                    def endTime = System.currentTimeMillis()
-                    echo "Deployment completed successfully in ${endTime - startTime} ms"
                 }
             }
         }
@@ -64,10 +42,7 @@ pipeline {
         stage('Fetch Real-Time Data') {
             steps {
                 script {
-                    def jobName = env.JOB_NAME ?: "unknown-job"
-                    def buildNumber = env.BUILD_NUMBER ?: "unknown-build"
-
-                    def response = sh(script: """curl -s -X GET "$JENKINS_URL/job/$jobName/$buildNumber/wfapi/describe" """, returnStdout: true).trim()
+                    def response = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
                     echo "Real-time Pipeline Data: ${response}"
 
                     sh """curl -X POST "$API_URL" \
