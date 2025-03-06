@@ -58,7 +58,7 @@ pipeline {
 def collectAndSendWFAPI() {
     try {
         // Fetch WFAPI data
-        def wfapiUrl = "${env.JENKINS_URL}/job/${env.JOB_NAME}/${env.BUILD_NUMBER}/wfapi/runs"
+        def wfapiUrl = "${env.JENKINS_URL}/job/${env.JOB_NAME}/${env.BUILD_NUMBER}/wfapi/describe"
         echo "Fetching pipeline metadata from: ${wfapiUrl}"
 
         def response = httpRequest(
@@ -79,19 +79,19 @@ def collectAndSendWFAPI() {
         ]
 
         // Extract Steps
-        def steps = wfapiData.collect { step ->
+        def steps = wfapiData.stages.collect { stage ->
             [
-                stage: step.name,
-                status: step.status,
-                startTime: step.startTimeMillis,
-                endTime: step.startTimeMillis + step.durationMillis,
-                duration: step.durationMillis,
-                consoleLog: getConsoleLog(step.id) // Fetch console log
+                stage: stage.name,
+                status: stage.status,
+                startTime: stage.startTimeMillis,
+                endTime: stage.startTimeMillis + stage.durationMillis,
+                duration: stage.durationMillis,
+                consoleLog: getConsoleLog(stage.id) // Fetch console log
             ]
         }
 
         // Final JSON Payload
-        def jsonPayload = JsonOutput.toJson([data: [metadata: metadata, steps: steps]])
+        def jsonPayload = JsonOutput.toJson([metadata: metadata, steps: steps])
 
         // Send data to external API
         def postResponse = httpRequest(
