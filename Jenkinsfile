@@ -39,23 +39,16 @@ pipeline {
             }
         }
 
-       stage('Fetch Real-Time Data') {
+   stage('Fetch Real-Time Data') {
     steps {
         script {
-            def jobName = env.JOB_NAME ?: 'UNKNOWN_JOB'
-            def buildNumber = env.BUILD_NUMBER ?: 'UNKNOWN_BUILD'
-
-            echo "Resolved JOB_NAME: ${jobName}"
-            echo "Resolved BUILD_NUMBER: ${buildNumber}"
-
-            def apiUrl = "$JENKINS_URL/job/${jobName}/${buildNumber}/wfapi/describe"
-
-            echo "API URL: ${apiUrl}"
+            def apiUrl = "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe"
+            echo "Fetching data from: ${apiUrl}"
 
             def pipelineRaw = sh(script: """curl -s "${apiUrl}" """, returnStdout: true).trim()
-
+            
             if (!pipelineRaw || pipelineRaw == "{}") {
-                error("Error: No pipeline data fetched!")
+                error("Error: No pipeline data fetched! Check if 'wfapi' is enabled and URL is correct.")
             }
 
             echo "Pipeline Raw Data: ${pipelineRaw}"
@@ -64,5 +57,6 @@ pipeline {
         }
     }
 }
+
     }
 }
