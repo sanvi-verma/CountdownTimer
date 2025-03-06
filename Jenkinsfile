@@ -39,24 +39,37 @@ pipeline {
             }
         }
 
-   stage('Fetch Real-Time Data') {
-    steps {
-        script {
-            def apiUrl = "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe"
-            echo "Fetching data from: ${apiUrl}"
+        stage('Fetch Real-Time Data') {
+            steps {
+                script {
+                    // Fetch Pipeline Metadata
+                    def pipelineData = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
 
-            def pipelineRaw = sh(script: """curl -s "${apiUrl}" """, returnStdout: true).trim()
-            
-            if (!pipelineRaw || pipelineRaw == "{}") {
-                error("Error: No pipeline data fetched! Check if 'wfapi' is enabled and URL is correct.")
+                    // Fetch Build Details (Git Info, Parameters, Environment)
+                    def buildData = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json?depth=1" """, returnStdout: true).trim()
+
+                    // Fetch Git Commit and Branch from Environment Variables
+                    def gitBranch = sh(script: 'echo $GIT_BRANCH', returnStdout: true).trim()
+                    def gitCommit = sh(script: 'echo $GIT_COMMIT', returnStdout: true).trim()
+
+                    // Merge All Data into a Single JSON Object
+                    def payload = """{
+                        "pipelineData": ${pipelineData},
+                        "buildData": ${buildData},
+                        "git": {
+                            "branch": "${gitBranch}",
+                            "commit": "${gitCommit}"
+                        }
+                    }"""
+
+                    echo "Complete Metadata: ${payload}"
+
+                    // Send Data to API
+                    sh """curl -X POST "$API_URL" \
+                        -H "Content-Type: application/json" \
+                        -d '${payload}'"""
+                }
             }
-
-            echo "Pipeline Raw Data: ${pipelineRaw}"
-
-            def pipelineJson = readJSON text: pipelineRaw
         }
-    }
-}
-
     }
 }
