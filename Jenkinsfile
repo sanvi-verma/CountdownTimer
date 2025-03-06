@@ -2,6 +2,7 @@ pipeline {
     agent any
 
     environment {
+        JENKINS_URL = "http://localhost:8080"
         API_URL = "https://2cf9-2402-e280-3e1d-bce-2584-894f-4e39-6c7c.ngrok-free.app/jenkins-metadata"
     }
 
@@ -16,70 +17,57 @@ pipeline {
 
         stage('Build') {
             steps {
-                echo 'Building the project...'
+                script {
+                    echo 'Building the project...'
+                }
             }
         }
 
         stage('Test') {
             steps {
-                echo 'Running tests...'
+                script {
+                    echo 'Running tests...'
+                }
             }
         }
 
         stage('Deploy') {
             steps {
-                echo 'Deploying the application...'
+                script {
+                    echo 'Deploying the application...'
+                }
             }
         }
-
-
 
         stage('Fetch Real-Time Data') {
             steps {
                 script {
-                    echo "Fetching Workflow Data from wfapi..."
+                    // Fetch Pipeline Metadata
+                    def pipelineData = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
 
-                    // Ensure BUILD_URL ends with a slash
-                    def jenkinsBaseUrl = env.BUILD_URL.endsWith("/") ? env.BUILD_URL : env.BUILD_URL + "/"
+                    // Fetch Build Details (Git Info, Parameters, Environment)
+                    def buildData = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json?depth=1" """, returnStdout: true).trim()
 
-                    // Construct API URLs dynamically
-                    def wfapiUrl = "${jenkinsBaseUrl}wfapi/describe"
-                    def buildApiUrl = "${jenkinsBaseUrl}api/json?tree=number,result,timestamp,estimatedDuration,executor[node,executorUtilization],artifacts[url],url"
-                    def changeSetsUrl = "${jenkinsBaseUrl}wfapi/changesets"
+                    // Fetch Git Commit and Branch from Environment Variables
+                    def gitBranch = sh(script: 'echo $GIT_BRANCH', returnStdout: true).trim()
+                    def gitCommit = sh(script: 'echo $GIT_COMMIT', returnStdout: true).trim()
 
-                    // Fetch Pipeline Data from wfapi
-                    def workflowData = sh(script: """curl -s "$wfapiUrl" """, returnStdout: true).trim()
-                    if (!workflowData || workflowData == "null" || workflowData.isEmpty()) { error "Failed to fetch wfapi data!" }
-                    echo "Extracted Workflow Data: ${workflowData}"
-
-                    // Fetch Build Metadata
-                    def buildData = sh(script: """curl -s "$buildApiUrl" """, returnStdout: true).trim()
-                    if (!buildData || buildData == "null" || buildData.isEmpty()) { error "Failed to fetch build metadata!" }
-                    echo "Extracted Build Data: ${buildData}"
-
-                    // Fetch Git Metadata using wfapi
-                    def changeSets = sh(script: """curl -s "$changeSetsUrl" """, returnStdout: true).trim()
-                    if (!changeSets || changeSets == "null" || changeSets.isEmpty()) { error "Failed to fetch Git data!" }
-                    echo "Extracted Git ChangeSets: ${changeSets}"
-
-                    // Prepare JSON Payload
+                    // Merge All Data into a Single JSON Object
                     def payload = """{
-                        "pipeline": ${workflowData},
-                        "build": ${buildData},
-                        "git": ${changeSets}
+                        "pipelineData": ${pipelineData},
+                        "buildData": ${buildData},
+                        "git": {
+                            "branch": "${gitBranch}",
+                            "commit": "${gitCommit}"
+                        }
                     }"""
 
-                    echo "Formatted Payload: ${payload}"
+                    echo "Complete Metadata: ${payload}"
 
                     // Send Data to API
-                    def response = sh(script: """curl -s -o response.json -w "%{http_code}" -X POST "$API_URL" -H "Content-Type: application/json" --data '${payload}'""", returnStdout: true).trim()
-                    def httpStatus = response[-3..-1]
-
-                    if (httpStatus != "200") {
-                        error "Failed to send data to API, HTTP Status: ${httpStatus}"
-                    } else {
-                        echo "Data successfully sent to API."
-                    }
+                    sh """curl -X POST "$API_URL" \
+                        -H "Content-Type: application/json" \
+                        -d '${payload}'"""
                 }
             }
         }
