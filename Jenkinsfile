@@ -42,15 +42,30 @@ pipeline {
         stage('Fetch Real-Time Data') {
             steps {
                 script {
+                    // Fetch pipeline data
                     def pipelineDataRaw = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
                     def pipelineData = readJSON(text: pipelineDataRaw)
 
+                    // Fetch build data
                     def buildDataRaw = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json?depth=1" """, returnStdout: true).trim()
                     def buildData = readJSON(text: buildDataRaw)
 
-                    def gitBranch = sh(script: 'echo $GIT_BRANCH', returnStdout: true).trim()
-                    def gitCommit = sh(script: 'echo $GIT_COMMIT', returnStdout: true).trim()
+                    // Get Git branch and commit
+                    def gitBranch = sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
+                    def gitCommit = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
 
+                    // Normalize pipeline stages
+                    def formattedStages = pipelineData?.stages?.collect { stage ->
+                        [
+                            stage    : stage.name ?: "Unknown",
+                            status   : stage.status ?: "UNKNOWN",
+                            startTime: stage.startTimeMillis ?: 0,
+                            endTime  : stage.endTimeMillis ?: 0,
+                            duration : stage.durationMillis ?: 0
+                        ]
+                    } ?: []
+
+                    // Format pipeline data
                     def formattedPipeline = [
                         id        : pipelineData?.id ?: "Unknown",
                         name      : pipelineData?.name ?: "Unknown",
@@ -59,16 +74,10 @@ pipeline {
                         endTime   : pipelineData?.endTimeMillis ?: 0,
                         duration  : pipelineData?.durationMillis ?: 0,
                         url       : pipelineData?.url ?: "Unknown",
-                        stages    : pipelineData?.stages?.collect { stage ->
-                            [
-                                stage    : stage.name ?: "Unknown",
-                                status   : stage.status ?: "UNKNOWN",
-                                startTime: stage.startTimeMillis ?: 0,
-                                duration : stage.durationMillis ?: 0
-                            ]
-                        } ?: []
+                        stages    : formattedStages
                     ]
 
+                    // Format build data
                     def formattedBuild = [
                         buildNumber        : buildData?.number ?: "Unknown",
                         status            : buildData?.result ?: "UNKNOWN",
@@ -87,19 +96,23 @@ pipeline {
                         testsUrl         : buildData?.url ? "${buildData.url}testReport" : "Unknown"
                     ]
 
-                    def formattedGit = gitCommit ? [
-                        branch : gitBranch,
-                        commit : gitCommit
-                    ] : [message: "No git data available"]
+                    // Format Git data
+                    def formattedGit = [
+                        branch : gitBranch ?: "Unknown",
+                        commit : gitCommit ?: "Unknown"
+                    ]
 
+                    // Construct final JSON
                     def jsonPayload = groovy.json.JsonOutput.toJson([
-                        pipeline: formattedPipeline as Map,
-                        build   : formattedBuild as Map,
-                        git     : formattedGit as Map
+                        pipeline: formattedPipeline,
+                        build   : formattedBuild,
+                        git     : formattedGit
                     ])
 
+                    // Print JSON
                     echo "Complete Metadata: ${groovy.json.JsonOutput.prettyPrint(jsonPayload)}"
 
+                    // Send JSON to API
                     sh """curl -X POST "$API_URL" \
                         -H "Content-Type: application/json" \
                         -d '${jsonPayload}'"""
@@ -108,3 +121,4 @@ pipeline {
         }
     }
 }
+
