@@ -10,6 +10,14 @@ pipeline {
     }
 
     stages {
+        stage('Declarative: Checkout SCM') {
+            steps {
+                script {
+                    echo 'Checking out source code from SCM...'
+                }
+            }
+        }
+
         stage('Clone Repository') {
             steps {
                 script {
@@ -41,23 +49,28 @@ pipeline {
                 }
             }
         }
+
+        stage('Declarative: Post Actions') {
+            steps {
+                script {
+                    echo 'Executing post-build actions...'
+                }
+            }
+        }
     }
 
-   post {
-    always {
-        script {
-            node {
+    post {
+        always {
+            script {
                 collectAndSendWFAPI()
             }
         }
     }
 }
 
-}
-
+// Function to collect and send metadata using WFAPI
 def collectAndSendWFAPI() {
     try {
-        // Fetch WFAPI data
         def wfapiUrl = "${env.JENKINS_URL}/job/${env.JOB_NAME}/${env.BUILD_NUMBER}/wfapi/describe"
         echo "Fetching pipeline metadata from: ${wfapiUrl}"
 
@@ -78,15 +91,25 @@ def collectAndSendWFAPI() {
             buildUrl: "${env.JENKINS_URL}/job/${env.JOB_NAME}/${env.BUILD_NUMBER}/"
         ]
 
-        // Extract Steps
-        def steps = wfapiData.stages.collect { stage ->
+        // Define required stages to extract only necessary ones
+        def requiredStages = [
+            "Declarative: Checkout SCM",
+            "Clone Repository",
+            "Build",
+            "Test",
+            "Deploy",
+            "Declarative: Post Actions"
+        ]
+
+        // Extract Steps only for required stages
+        def steps = wfapiData.stages.findAll { stage -> stage.name in requiredStages }.collect { stage ->
             [
                 stage: stage.name,
                 status: stage.status,
                 startTime: stage.startTimeMillis,
                 endTime: stage.startTimeMillis + stage.durationMillis,
                 duration: stage.durationMillis,
-                consoleLog: getConsoleLog(stage.id) // Fetch console log
+                consoleLog: getConsoleLog(stage.id)
             ]
         }
 
