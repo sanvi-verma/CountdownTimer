@@ -39,34 +39,37 @@ pipeline {
             }
         }
 
-        stage('Fetch Real-Time Data') {
-            steps {
-                script {
-                    def jobName = env.JOB_NAME
-                    def buildNumber = env.BUILD_NUMBER
+       stage('Fetch Real-Time Data') {
+    steps {
+        script {
+            def jobName = env.JOB_NAME
+            def buildNumber = env.BUILD_NUMBER
 
-                    // Fetch Pipeline Data (Stages, Status)
-                   def pipelineData = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/wfapi/describe" """, returnStdout: true).trim()
-def buildData = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/api/json?depth=1" """, returnStdout: true).trim()
-def gitData = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/api/json?tree=changeSets[items[commitId,author[fullName],authorEmail,msg,date,paths[editType,file]]]" """, returnStdout: true).trim()
+            echo "Fetching Pipeline Data..."
+            def pipelineData = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/wfapi/describe" """, returnStdout: true).trim()
+            echo "Pipeline Data: ${pipelineData}"
 
+            echo "Fetching Build Data..."
+            def buildData = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/api/json?depth=1" """, returnStdout: true).trim()
+            echo "Build Data: ${buildData}"
 
-                    // Ensure JSON format is valid and avoid escape issues
-                   def payload = """{
-    "pipelineData": ${pipelineData ?: '{}'},
-    "buildData": ${buildData ?: '{}'},
-    "gitData": ${gitData ?: '[]'}
-}"""
+            echo "Fetching Git Data..."
+            def gitData = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/api/json?tree=changeSets[items[commitId,author[fullName],authorEmail,msg,date,paths[editType,file]]]" """, returnStdout: true).trim()
+            echo "Git Data: ${gitData}"
 
+            // Ensure JSON format is valid
+            def payload = """{
+                "pipelineData": ${pipelineData ?: '{}'},
+                "buildData": ${buildData ?: '{}'},
+                "gitData": ${gitData ?: '[]'}
+            }"""
 
-                    echo "Sending formatted pipeline metadata: ${payload}"
+            echo "Formatted Payload: ${payload}"
 
-                    // Send the data to your API
-                    sh """curl -X POST "$API_URL" \
-                        -H "Content-Type: application/json" \
-                        --data '${payload}'"""
-                }
-            }
+            sh """curl -X POST "$API_URL" -H "Content-Type: application/json" --data '${payload}'"""
         }
+    }
+}
+
     }
 }
