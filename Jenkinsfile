@@ -2,9 +2,7 @@ pipeline {
     agent any
 
     environment {
-        JENKINS_URL = "http://localhost:8080"
         API_URL = "https://2cf9-2402-e280-3e1d-bce-2584-894f-4e39-6c7c.ngrok-free.app/jenkins-metadata"
-         API_KEY = "qteyew2537e3ygdhusdhd833"
     }
 
     stages {
@@ -39,7 +37,8 @@ pipeline {
                 script {
                     echo "Fetching Workflow Data from wfapi..."
 
-                    def workflowData = sh(script: """curl -s "$JENKINS_URL${env.BUILD_URL}wfapi/describe" """, returnStdout: true).trim()
+                    // Corrected URL usage
+                    def workflowData = sh(script: """curl -s "${env.BUILD_URL}wfapi/describe" """, returnStdout: true).trim()
                     
                     if (!workflowData || workflowData == "null") {
                         error "Failed to fetch wfapi data!"
@@ -60,10 +59,10 @@ pipeline {
                     ]
 
                     echo "Fetching Build Data..."
-                    def buildData = sh(script: """curl -s "$JENKINS_URL${env.BUILD_URL}api/json?depth=1" """, returnStdout: true).trim()
+                    def buildData = sh(script: """curl -s "${env.BUILD_URL}api/json?depth=1" """, returnStdout: true).trim()
                     
                     echo "Fetching Git Data..."
-                    def gitData = sh(script: """curl -s "$JENKINS_URL${env.BUILD_URL}api/json?tree=changeSets[items[commitId,author[fullName],authorEmail,msg,date,paths[editType,file]]]" """, returnStdout: true).trim()
+                    def gitData = sh(script: """curl -s "${env.BUILD_URL}api/json?tree=changeSets[items[commitId,author[fullName],authorEmail,msg,date,paths[editType,file]]]" """, returnStdout: true).trim()
 
                     // Create final payload
                     def payload = [
