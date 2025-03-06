@@ -48,7 +48,7 @@ pipeline {
                     // Fetch Pipeline Data (Stages, Status)
                    def pipelineData = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/wfapi/describe" """, returnStdout: true).trim()
 def buildData = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/api/json?depth=1" """, returnStdout: true).trim()
-def gitData = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/wfapi/changesets" """, returnStdout: true).trim()
+def gitData = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/api/json?tree=changeSets[items[commitId,author[fullName],authorEmail,msg,date,paths[editType,file]]]" """, returnStdout: true).trim()
 
 
                     // Ensure JSON format is valid and avoid escape issues
