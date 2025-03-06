@@ -68,10 +68,6 @@ pipeline {
 
                     echo "Complete Metadata: ${payload}"
 
-                    curl -X POST "https://2cf9-2402-e280-3e1d-bce-2584-894f-4e39-6c7c.ngrok-free.app/jenkins-metadata" \
-     -H "Content-Type: application/json" \
-     -d '{"message": "Hello, API!"}'
-
 
                     // Send Data to API
                     sh """curl -X POST "$API_URL" \
