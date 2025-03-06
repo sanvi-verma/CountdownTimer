@@ -43,13 +43,16 @@ pipeline {
         }
     }
 
-    post {
-        always {
-            script {
+   post {
+    always {
+        script {
+            node {
                 collectAndSendWFAPI()
             }
         }
     }
+}
+
 }
 
 def collectAndSendWFAPI() {
