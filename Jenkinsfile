@@ -52,13 +52,17 @@ pipeline {
                     def gitBranch = sh(script: 'echo $GIT_BRANCH', returnStdout: true).trim()
                     def gitCommit = sh(script: 'echo $GIT_COMMIT', returnStdout: true).trim()
 
+                    // Escape double quotes in JSON data
+                    pipelineData = pipelineData.replace('"', '\\"')
+                    buildData = buildData.replace('"', '\\"')
+
                     // Merge All Data into a Single JSON Object
                     def payload = """{
-                        "pipelineData": ${pipelineData},
-                        "buildData": ${buildData},
-                        "git": {
-                            "branch": "${gitBranch}",
-                            "commit": "${gitCommit}"
+                        \\"pipelineData\\": ${pipelineData},
+                        \\"buildData\\": ${buildData},
+                        \\"git\\": {
+                            \\"branch\\": \\"${gitBranch}\\",
+                            \\"commit\\": \\"${gitCommit}\\"
                         }
                     }"""
 
@@ -67,7 +71,7 @@ pipeline {
                     // Send Data to API
                     sh """curl -X POST "$API_URL" \
                         -H "Content-Type: application/json" \
-                        -d '${payload}'"""
+                        -d "${payload}" """
                 }
             }
         }
