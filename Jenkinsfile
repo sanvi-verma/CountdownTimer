@@ -39,37 +39,30 @@ pipeline {
             }
         }
 
-        stage('Fetch Real-Time Data') {
-            steps {
-                script {
-                    // Fetch Pipeline Metadata
-                    def pipelineData = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
+       stage('Fetch Real-Time Data') {
+    steps {
+        script {
+            def jobName = env.JOB_NAME ?: 'UNKNOWN_JOB'
+            def buildNumber = env.BUILD_NUMBER ?: 'UNKNOWN_BUILD'
 
-                    // Fetch Build Details (Git Info, Parameters, Environment)
-                    def buildData = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json?depth=1" """, returnStdout: true).trim()
+            echo "Resolved JOB_NAME: ${jobName}"
+            echo "Resolved BUILD_NUMBER: ${buildNumber}"
 
-                    // Fetch Git Commit and Branch from Environment Variables
-                    def gitBranch = sh(script: 'echo $GIT_BRANCH', returnStdout: true).trim()
-                    def gitCommit = sh(script: 'echo $GIT_COMMIT', returnStdout: true).trim()
+            def apiUrl = "$JENKINS_URL/job/${jobName}/${buildNumber}/wfapi/describe"
 
-                    // Merge All Data into a Single JSON Object
-                    def payload = """{
-                        "pipelineData": ${pipelineData},
-                        "buildData": ${buildData},
-                        "git": {
-                            "branch": "${gitBranch}",
-                            "commit": "${gitCommit}"
-                        }
-                    }"""
+            echo "API URL: ${apiUrl}"
 
-                    echo "Complete Metadata: ${payload}"
+            def pipelineRaw = sh(script: """curl -s "${apiUrl}" """, returnStdout: true).trim()
 
-                    // Send Data to API
-                    sh """curl -X POST "$API_URL" \
-                        -H "Content-Type: application/json" \
-                        -d '${payload}'"""
-                }
+            if (!pipelineRaw || pipelineRaw == "{}") {
+                error("Error: No pipeline data fetched!")
             }
+
+            echo "Pipeline Raw Data: ${pipelineRaw}"
+
+            def pipelineJson = readJSON text: pipelineRaw
         }
+    }
+}
     }
 }
