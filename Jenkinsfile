@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        JENKINS_URL = env.JENKINS_URL ?: "http://localhost:8080"
+        JENKINS_URL = "http://localhost:8080"
         API_URL = "https://2cf9-2402-e280-3e1d-bce-2584-894f-4e39-6c7c.ngrok-free.app/jenkins-metadata"
     }
 
