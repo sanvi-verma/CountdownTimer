@@ -37,38 +37,74 @@ pipeline {
                 script {
                     echo "Fetching Workflow Data from wfapi..."
 
-                    // Corrected URL usage
+                    // Fetch workflow metadata
                     def workflowData = sh(script: """curl -s "${env.BUILD_URL}wfapi/describe" """, returnStdout: true).trim()
-                    
-                    if (!workflowData || workflowData == "null") {
-                        error "Failed to fetch wfapi data!"
-                    }
-
-                    echo "Extracted Workflow Data: ${workflowData}"
-
-                    // Parse JSON data using groovy.json.JsonSlurper
-                    def jsonParser = new groovy.json.JsonSlurper()
+                    def jsonParser = new groovy.json.JsonSlurperClassic()
                     def wfJson = jsonParser.parseText(workflowData)
 
-                    // Extract pipeline metadata
                     def pipelineData = [
+                        "id": wfJson.id ?: "Unknown",
                         "name": wfJson.name ?: "Unknown",
                         "status": wfJson.status ?: "Unknown",
-                        "durationMillis": wfJson.durationMillis ?: 0,
-                        "stages": wfJson.stages ?: []
+                        "startTime": wfJson.startTimeMillis ?: 0,
+                        "endTime": wfJson.endTimeMillis ?: 0,
+                        "duration": wfJson.durationMillis ?: 0,
+                        "url": env.BUILD_URL,
+                        "stages": wfJson.stages.collect { stage -> 
+                            [
+                                "stage": stage.name,
+                                "status": stage.status,
+                                "startTime": stage.startTimeMillis ?: 0,
+                                "endTime": stage.endTimeMillis ?: 0,
+                                "duration": stage.durationMillis ?: 0
+                            ]
+                        }
                     ]
 
                     echo "Fetching Build Data..."
                     def buildData = sh(script: """curl -s "${env.BUILD_URL}api/json?depth=1" """, returnStdout: true).trim()
-                    
+                    def buildJson = jsonParser.parseText(buildData)
+
+                    def build = [
+                        "buildNumber": buildJson.id ?: "Unknown",
+                        "status": buildJson.inProgress ? "IN_PROGRESS" : (buildJson.result ?: "UNKNOWN"),
+                        "triggeredBy": [
+                            "userId": buildJson.actions?.find { it.causes }?.causes?.find { it.userId }?.userId ?: "unknown",
+                            "userName": buildJson.actions?.find { it.causes }?.causes?.find { it.userName }?.userName ?: "unknown"
+                        ],
+                        "timestamp": buildJson.timestamp ?: 0,
+                        "estimatedDuration": buildJson.estimatedDuration ?: 0,
+                        "executor": [
+                            "node": "built-in",
+                            "executorUtilization": buildJson.actions?.find { it.executorUtilization }?.executorUtilization ?: 1
+                        ],
+                        "artifactsUrl": "${env.BUILD_URL}artifact",
+                        "displayUrl": "${env.BUILD_URL}pipeline-graph",
+                        "testsUrl": "${env.BUILD_URL}testReport"
+                    ]
+
                     echo "Fetching Git Data..."
                     def gitData = sh(script: """curl -s "${env.BUILD_URL}api/json?tree=changeSets[items[commitId,author[fullName],authorEmail,msg,date,paths[editType,file]]]" """, returnStdout: true).trim()
+                    def gitJson = jsonParser.parseText(gitData)
+
+                    def gitCommits = gitJson.changeSets?.collectMany { it.items } ?: []
+                    def git = gitCommits ? [
+                        "commitId": gitCommits[0].commitId ?: "Unknown",
+                        "affectedFiles": gitCommits[0].paths?.collect { it.file } ?: [],
+                        "commitMessage": gitCommits[0].msg ?: "No commit message",
+                        "timestamp": gitCommits[0].date ?: "Unknown",
+                        "author": [
+                            "name": gitCommits[0].author?.fullName ?: "Unknown",
+                            "email": gitCommits[0].authorEmail ?: "Unknown"
+                        ],
+                        "changeType": gitCommits[0].paths?.collect { it.editType } ?: []
+                    ] : ["message": "No git data available"]
 
                     // Create final payload
                     def payload = [
-                        "pipelineData": pipelineData,
-                        "buildData": buildData ?: "{}",
-                        "gitData": gitData ?: "[]"
+                        "pipeline": pipelineData,
+                        "build": build,
+                        "git": git
                     ]
 
                     def payloadJson = new groovy.json.JsonBuilder(payload).toString()
