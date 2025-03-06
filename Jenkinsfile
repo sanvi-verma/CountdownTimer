@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        JENKINS_URL = "http://localhost:8080"
+        JENKINS_URL = env.JENKINS_URL ?: "http://localhost:8080"
         API_URL = "https://2cf9-2402-e280-3e1d-bce-2584-894f-4e39-6c7c.ngrok-free.app/jenkins-metadata"
     }
 
@@ -17,67 +17,90 @@ pipeline {
 
         stage('Build') {
             steps {
-                script {
-                    echo 'Building the project...'
-                }
+                echo 'Building the project...'
             }
         }
 
         stage('Test') {
             steps {
-                script {
-                    echo 'Running tests...'
-                }
+                echo 'Running tests...'
             }
         }
 
         stage('Deploy') {
             steps {
-                script {
-                    echo 'Deploying the application...'
-                }
+                echo 'Deploying the application...'
             }
         }
 
         stage('Fetch Real-Time Data') {
             steps {
                 script {
-                    echo "Fetching Workflow Data from wfapi..."
+                    echo "Fetching Jenkins Metadata..."
 
-                    // Fetch Workflow Data from wfapi
+                    // ✅ Fetch Build Metadata (includes Git URL, parameters, etc.)
+                    def buildData = sh(script: """curl -s "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json?depth=1" """, returnStdout: true).trim()
+                    if (!buildData || buildData == "null") { error "Failed to fetch build metadata!" }
+                    echo "Extracted Build Data: ${buildData}"
+                    def buildJson = readJSON(text: buildData)
+
+                    // ✅ Extract Repository URL dynamically from Jenkins API
+                    def repoUrl = buildJson?.actions.find { it._class == "hudson.plugins.git.util.BuildData" }?.remoteUrls?.get(0) ?: "UNKNOWN"
+                    echo "Extracted Repository URL: ${repoUrl}"
+
+                    // ✅ Fetch Pipeline Metadata
                     def pipelineData = sh(script: """curl -s "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
                     if (!pipelineData || pipelineData == "null") { error "Failed to fetch wfapi data!" }
                     echo "Extracted Pipeline Data: ${pipelineData}"
 
-                    // Fetch Build Metadata from Jenkins API
-                    def buildData = sh(script: """curl -s "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json?tree=number,result,timestamp,estimatedDuration,executor[node,executorUtilization],artifacts[url],url" """, returnStdout: true).trim()
-                    if (!buildData || buildData == "null") { error "Failed to fetch build metadata!" }
-                    echo "Extracted Build Data: ${buildData}"
-
-                    // Fetch Git Metadata (Branch, Commit, Changes) from wfapi
+                    // ✅ Fetch Git ChangeSets (Commit Details)
                     def changeSetsData = sh(script: """curl -s "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/changesets" """, returnStdout: true).trim()
-                    if (!changeSetsData || changeSetsData == "null") { error "Failed to fetch Git data!" }
-                    echo "Extracted Git ChangeSets: ${changeSetsData}"
+                    if (!changeSetsData || changeSetsData == "null" || changeSetsData == "[]") {
+                        echo "No Git changes found for this build."
+                        changeSetsData = "[]"
+                    } else {
+                        echo "Extracted Git ChangeSets: ${changeSetsData}"
+                    }
 
-                    // Parse JSON to extract Git Branch & Commit dynamically
+                    // ✅ Parse JSON to Extract Git Commits
                     def gitData = readJSON(text: changeSetsData)
-                    def gitBranch = gitData[0]?.branch ?: "unknown"
-                    def gitCommit = gitData[0]?.commitId ?: "unknown"
+                    def commits = []
 
-                    // Merge All Data into a Single JSON Object
+                    if (gitData.size() > 0) {
+                        for (commitEntry in gitData[0].commits) {
+                            def commitId = commitEntry.commitId
+                            def commitUrl = repoUrl != "UNKNOWN" ? "${repoUrl}/commit/${commitId}" : "UNKNOWN"
+                            def author = commitEntry.authorJenkinsId ?: "unknown"
+                            def message = commitEntry.message
+                            def timestamp = commitEntry.timestamp
+                            def consoleUrl = "$JENKINS_URL${commitEntry.consoleUrl}"
+
+                            commits.add([
+                                commitId    : commitId,
+                                commitUrl   : commitUrl,
+                                author      : author,
+                                message     : message,
+                                timestamp   : timestamp,
+                                consoleUrl  : consoleUrl
+                            ])
+                        }
+                    }
+
+                    // ✅ Merge All Data into a Single JSON Object
                     def payload = """{
                         "pipeline": ${pipelineData},
                         "build": ${buildData},
                         "git": {
-                            "branch": "${gitBranch}",
-                            "commit": "${gitCommit}",
-                            "changes": ${changeSetsData}
+                            "kind": "git",
+                            "repoUrl": "${repoUrl}",
+                            "commitCount": ${commits.size()},
+                            "commits": ${groovy.json.JsonOutput.toJson(commits)}
                         }
                     }"""
 
                     echo "Complete Metadata: ${payload}"
 
-                    // Send Data to API
+                    // ✅ Send Data to API
                     def response = sh(script: """curl -s -o response.json -w "%{http_code}" -X POST "$API_URL" -H "Content-Type: application/json" --data '${payload}'""", returnStdout: true).trim()
                     def httpStatus = response[-3..-1]
 
