@@ -44,35 +44,35 @@ pipeline {
                 script {
                     // Fetch Pipeline Metadata
                     def pipelineData = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
+                    def pipelineJson = readJSON text: pipelineData
 
-                    // Fetch Build Details (Git Info, Parameters, Environment)
+                    // Fetch Build Details
                     def buildData = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json?depth=1" """, returnStdout: true).trim()
+                    def buildJson = readJSON text: buildData
 
                     // Fetch Git Commit and Branch from Environment Variables
                     def gitBranch = sh(script: 'echo $GIT_BRANCH', returnStdout: true).trim()
                     def gitCommit = sh(script: 'echo $GIT_COMMIT', returnStdout: true).trim()
 
-                    // Escape double quotes in JSON data
-                    pipelineData = pipelineData.replace('"', '\\"')
-                    buildData = buildData.replace('"', '\\"')
+                    // Construct JSON payload
+                    def payload = [
+                        pipelineData: pipelineJson,
+                        buildData: buildJson,
+                        git: [
+                            branch: gitBranch,
+                            commit: gitCommit
+                        ]
+                    ]
 
-                    // Merge All Data into a Single JSON Object
-                    def payload = """{
-                        \\"pipelineData\\": ${pipelineData},
-                        \\"buildData\\": ${buildData},
-                        \\"git\\": {
-                            \\"branch\\": \\"${gitBranch}\\",
-                            \\"commit\\": \\"${gitCommit}\\"
-                        }
-                    }"""
+                    // Convert to JSON string
+                    def payloadJson = writeJSON returnText: true, json: payload
 
-                    echo "Complete Metadata: ${payload}"
-
+                    echo "Final JSON Payload: ${payloadJson}"
 
                     // Send Data to API
-                    sh """curl -X POST "$API_URL" \
+                    sh """curl -v -X POST "$API_URL" \
                         -H "Content-Type: application/json" \
-                        -d "${payload}" """
+                        -d '${payloadJson}' """
                 }
             }
         }
