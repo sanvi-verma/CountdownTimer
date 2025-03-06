@@ -38,34 +38,35 @@ pipeline {
                 }
             }
         }
-        stage('Fetch Real-Time Data') 
-        {
+
+        stage('Fetch Real-Time Data') {
             steps {
                 script {
                     def jobName = env.JOB_NAME
                     def buildNumber = env.BUILD_NUMBER
 
                     // Fetch Pipeline Data (Stages, Status)
-                    def pipelineData = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/wfapi/describe" """, returnStdout: true).trim()
+                    def pipelineData = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/wfapi/describe" | jq -c '.' """, returnStdout: true).trim()
                     
                     // Fetch Build Metadata (User, Execution Details)
-                    def buildData = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/api/json?depth=1" """, returnStdout: true).trim()
+                    def buildData = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/api/json?depth=1" | jq -c '.' """, returnStdout: true).trim()
 
                     // Fetch Git Details (Commit, Branch, Repo)
-                    def changeSets = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/wfapi/changesets" """, returnStdout: true).trim()
+                    def gitData = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/wfapi/changesets" | jq -c '.' """, returnStdout: true).trim()
 
-                    // Merge all data into a single JSON payload
+                    // Ensure JSON format is valid and avoid escape issues
                     def payload = """{
                         "pipelineData": ${pipelineData},
                         "buildData": ${buildData},
-                        "gitData": ${changeSets}
+                        "gitData": ${gitData}
                     }"""
 
                     echo "Sending formatted pipeline metadata: ${payload}"
+
                     // Send the data to your API
                     sh """curl -X POST "$API_URL" \
                         -H "Content-Type: application/json" \
-                        -d '${payload}'"""
+                        --data '${payload}'"""
                 }
             }
         }
