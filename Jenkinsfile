@@ -42,29 +42,28 @@ pipeline {
         stage('Fetch Real-Time Data') {
             steps {
                 script {
-                    // Fetch Pipeline Metadata
-                    def pipelineData = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/wfapi/describe" """, returnStdout: true).trim()
+                    def jobName = env.JOB_NAME
+                    def buildNumber = env.BUILD_NUMBER
 
-                    // Fetch Build Details (Git Info, Parameters, Environment)
-                    def buildData = sh(script: """curl -s -X GET "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json?depth=1" """, returnStdout: true).trim()
+                    // Fetch Pipeline Data (Stages, Status)
+                    def pipelineData = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/wfapi/describe" """, returnStdout: true).trim()
+                    
+                    // Fetch Build Metadata (User, Execution Details)
+                    def buildData = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/api/json?depth=1" """, returnStdout: true).trim()
 
-                    // Fetch Git Commit and Branch from Environment Variables
-                    def gitBranch = sh(script: 'echo $GIT_BRANCH', returnStdout: true).trim()
-                    def gitCommit = sh(script: 'echo $GIT_COMMIT', returnStdout: true).trim()
+                    // Fetch Git Details (Commit, Branch, Repo)
+                    def changeSets = sh(script: """curl -s "$JENKINS_URL/job/$jobName/$buildNumber/wfapi/changesets" """, returnStdout: true).trim()
 
-                    // Merge All Data into a Single JSON Object
+                    // Merge all data into a single JSON payload
                     def payload = """{
                         "pipelineData": ${pipelineData},
                         "buildData": ${buildData},
-                        "git": {
-                            "branch": "${gitBranch}",
-                            "commit": "${gitCommit}"
-                        }
+                        "gitData": ${changeSets}
                     }"""
 
-                    echo "Complete Metadata: ${payload}"
+                    echo "Sending formatted pipeline metadata: ${payload}"
 
-                    // Send Data to API
+                    // Send the data to your API
                     sh """curl -X POST "$API_URL" \
                         -H "Content-Type: application/json" \
                         -d '${payload}'"""
