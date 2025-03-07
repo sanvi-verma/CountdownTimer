@@ -6,11 +6,12 @@ pipeline {
     }
 
     stages {
-        stage('Clone Repository') {
-            steps {
-                git 'https://github.com/sanvi-verma/CountdownTimer.git'
-            }
-        }
+       stage('Clone Repository') {
+    steps {
+        git branch: 'main', url: 'https://github.com/sanvi-verma/CountdownTimer.git'
+    }
+}
+
 
         stage('Install Dependencies') {
             steps {
