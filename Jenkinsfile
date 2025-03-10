@@ -4,7 +4,7 @@ pipeline {
     stages {
         stage('Clone Repository') {
             steps {
-                git 'https://github.com/sanvi-verma/CountdownTimer.git'  // Replace with your repo URL
+                 git branch: 'main',url: 'https://github.com/sanvi-verma/CountdownTimer.git'  // Replace with your repo URL
             }
         }
 
