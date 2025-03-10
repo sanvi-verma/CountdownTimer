@@ -25,10 +25,6 @@ pipeline {
         stage('Lint JavaScript') {
             steps {
                 sh '''
-                    npm install -g eslint
-                    if [ -f eslint.config.js ]; then
-                        node --experimental-modules --loader ts-node/esm eslint.config.js || true
-                    fi
                     npx eslint . --fix || true
                 '''
             }
@@ -36,13 +32,7 @@ pipeline {
 
         stage('Build Project') {
             steps {
-                sh '''
-                    if npm run | grep -q "build"; then
-                        npm run build
-                    else
-                        echo "Skipping build: No build script defined"
-                    fi
-                '''
+                sh 'npm run build'
             }
         }
 
@@ -51,15 +41,14 @@ pipeline {
                 branch 'main'
             }
             steps {
-                sh '''
-                    git config --global user.email "your-email@example.com"
-                    git config --global user.name "Sanvi Verma"
-                    if npm run | grep -q "deploy"; then
-                        npm run deploy
-                    else
-                        echo "Skipping deployment: No deploy script defined"
-                    fi
-                '''
+                withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
+                    sh '''
+                        git config --global user.email "your-email@example.com"
+                        git config --global user.name "Sanvi Verma"
+                        git remote set-url origin https://sanvi-verma:${GITHUB_TOKEN}@github.com/sanvi-verma/CountdownTimer.git
+                        GIT_ASKPASS=echo npm run deploy
+                    '''
+                }
             }
         }
     }
