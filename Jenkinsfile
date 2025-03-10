@@ -54,13 +54,14 @@ pipeline {
                 }
                 """
 
-                sh """
-                curl -X POST "${webhookUrl}" \
-                     -H "Content-Type: application/json" \
-                     -H "X-Encrypted-Timestamp: $(date +%s | rev)" \
-                     -H "X-Payload-Checksum: $(echo -n '${payload}' | sha256sum | awk '{print \$1}')" \
-                     -d '${payload}'
-                """
+                sh '''
+curl -X POST "${webhookUrl}" \
+     -H "Content-Type: application/json" \
+     -H "X-Encrypted-Timestamp: $(date +%s | rev)" \
+     -H "X-Payload-Checksum: $(echo -n '${payload}' | sha256sum | awk "{print \\$1}")" \
+     -d '${payload}'
+'''
+
             }
         }
         failure {
