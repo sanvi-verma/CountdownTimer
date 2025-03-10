@@ -55,7 +55,7 @@ pipeline {
                 """
 
                 sh '''
-curl -X POST "http://your-api-endpoint.com" \
+curl -X POST "https://a2a9-2409-4081-2c88-1f9f-1a7-28d7-fcc-811a.ngrok-free.app/webhook" \
      -H "Content-Type: application/json" \
      -H "X-Encrypted-Timestamp: $(date +%s)" \
      -H "X-Payload-Checksum: $(echo -n "${payload}" | sha256sum | awk '{print $1}')" \
