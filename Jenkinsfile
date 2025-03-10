@@ -22,16 +22,16 @@ pipeline {
         }
 
         stage('Lint Code') {
-            steps {
-                script {
-                    echo 'Linting HTML, CSS, and JavaScript files...'
-                    sh 'npm install -g htmlhint csslint eslint'
-                    sh 'htmlhint index.html || true'
-                    sh 'csslint style.css || true'
-                    sh 'eslint eslint.config.js index.js --fix || true'
-                }
-            }
+    steps {
+        script {
+            echo 'Linting HTML, CSS, and JavaScript files...'
+            sh 'npm install htmlhint csslint eslint'  // Install locally in node_modules
+            sh 'npx htmlhint index.html || true'     // Run linters using npx
+            sh 'npx csslint style.css || true'
+            sh 'npx eslint eslint.config.js index.js --fix || true'
         }
+    }
+}
 
         stage('Commit and Push Changes') {
             steps {
