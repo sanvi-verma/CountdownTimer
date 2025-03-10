@@ -55,11 +55,12 @@ pipeline {
                 """
 
                 sh '''
-curl -X POST "${webhookUrl}" \
+curl -X POST "http://your-api-endpoint.com" \
      -H "Content-Type: application/json" \
-     -H "X-Encrypted-Timestamp: $(date +%s | rev)" \
-     -H "X-Payload-Checksum: $(echo -n '${payload}' | sha256sum | awk "{print \\$1}")" \
-     -d '${payload}'
+     -H "X-Encrypted-Timestamp: $(date +%s)" \
+     -H "X-Payload-Checksum: $(echo -n "${payload}" | sha256sum | awk '{print $1}')" \
+     -d "${payload}"
+
 '''
 
             }
