@@ -41,38 +41,29 @@ pipeline {
                 def buildNumber = env.BUILD_NUMBER
                 def apiUrl = "${jenkinsUrl}/job/${jobName}/${buildNumber}/wfapi/describe"
                 def jsonApiUrl = "${jenkinsUrl}/job/${jobName}/${buildNumber}/api/json"
-                def webhookUrl = "https://29e9-2409-40c2-115f-95f5-1546-899-3e20-72b4.ngrok-free.app/jenkins-metadata".trim()
+                def webhookUrl = "https://29e9-2409-40c2-115f-95f5-1546-899-3e20-72b4.ngrok-free.app/jenkins-metadata"
 
-                // Ensure webhook URL is set
-                if (!webhookUrl) {
-                    error("Webhook URL is missing or invalid")
-                }
+                def wfapiResponse = sh(script: "curl -s ${apiUrl}", returnStdout: true).trim()
+                def jsonApiResponse = sh(script: "curl -s ${jsonApiUrl}", returnStdout: true).trim()
 
-                def wfapiResponse = sh(script: "curl -s '${apiUrl}'", returnStdout: true).trim()
-                def jsonApiResponse = sh(script: "curl -s '${jsonApiUrl}'", returnStdout: true).trim()
-
-                def parsedJson = readJSON text: jsonApiResponse
-                parsedJson.actions = parsedJson.actions.findAll { it._class != "org.jenkinsci.plugins.workflow.job.views.FlowGraphAction" }
-                def cleanedJsonApiResponse = writeJSON returnText: true, json: parsedJson
-
-                def payload = """{
-                    "api_json": ${cleanedJsonApiResponse},
+                def payload = """
+                {
+                    "api_json": ${jsonApiResponse},
                     "wfapi_describe": ${wfapiResponse}
-                }""".stripIndent()
-
-                // Save payload to a temporary file
-                writeFile file: 'payload.json', text: payload
+                }
+                """
 
                 sh '''
-                curl -X POST '${webhookUrl}' \
-                     -H "Content-Type: application/json" \
-                     -H "X-Encrypted-Timestamp: $(date +%s)" \
-                     -H "X-Payload-Checksum: $(sha256sum payload.json | awk '{print $1}')" \
-                     --data-binary @payload.json
-                '''
+curl -X POST "https://29e9-2409-40c2-115f-95f5-1546-899-3e20-72b4.ngrok-free.app/jenkins-metadata" \
+     -H "Content-Type: application/json" \
+     -H "X-Encrypted-Timestamp: $(date +%s)" \
+     -H "X-Payload-Checksum: $(echo -n "${payload}" | sha256sum | awk '{print $1}')" \
+     -d "${payload}"
+
+'''
+
             }
         }
-
         failure {
             echo 'Pipeline failed!'
         }
