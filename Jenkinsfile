@@ -41,7 +41,7 @@ pipeline {
                 def buildNumber = env.BUILD_NUMBER
                 def apiUrl = "${jenkinsUrl}/job/${jobName}/${buildNumber}/wfapi/describe"
                 def jsonApiUrl = "${jenkinsUrl}/job/${jobName}/${buildNumber}/api/json"
-                def webhookUrl = "https://6451-2409-40c2-115f-95f5-45da-9eeb-7cc7-5618.ngrok-free.app/jenkins-metadata"
+                def webhookUrl = " https://29e9-2409-40c2-115f-95f5-1546-899-3e20-72b4.ngrok-free.app/jenkins-metadata"
 
                 // Ensure webhook URL is set
                 if (!webhookUrl?.trim()) {
