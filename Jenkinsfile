@@ -43,6 +43,7 @@ pipeline {
                 def jsonApiUrl = "${jenkinsUrl}/job/${jobName}/${buildNumber}/api/json"
                 def webhookUrl = "https://6451-2409-40c2-115f-95f5-45da-9eeb-7cc7-5618.ngrok-free.app/jenkins-metadata"
 
+                // Ensure webhook URL is set
                 if (!webhookUrl?.trim()) {
                     error("Webhook URL is missing or invalid")
                 }
@@ -54,20 +55,21 @@ pipeline {
                 parsedJson.actions = parsedJson.actions.findAll { it._class != "org.jenkinsci.plugins.workflow.job.views.FlowGraphAction" }
                 def cleanedJsonApiResponse = writeJSON returnText: true, json: parsedJson
 
-                def payload = """
-                {
+                def payload = """{
                     "api_json": ${cleanedJsonApiResponse},
                     "wfapi_describe": ${wfapiResponse}
-                }
-                """
+                }""".stripIndent()
 
-                sh '''
-                curl -X POST "'"${webhookUrl}"'" \
+                // Save payload to a temporary file
+                writeFile file: 'payload.json', text: payload
+
+                sh """
+                curl -X POST "${webhookUrl}" \
                      -H "Content-Type: application/json" \
                      -H "X-Encrypted-Timestamp: $(date +%s)" \
-                     -H "X-Payload-Checksum: $(echo -n '"${payload}"' | sha256sum | awk '{print $1}')" \
-                     -d '"${payload}"'
-                '''
+                     -H "X-Payload-Checksum: $(cat payload.json | sha256sum | awk '{print $1}')" \
+                     --data-binary @payload.json
+                """
             }
         }
 
