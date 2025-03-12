@@ -1,4 +1,3 @@
-
 pipeline {
     agent any
 
@@ -35,7 +34,7 @@ pipeline {
     }
 
     post {
-                success {
+        success {
             script {
                 def jenkinsUrl = env.JENKINS_URL ?: 'http://localhost:8080'
                 def jobName = env.JOB_NAME
@@ -60,13 +59,13 @@ pipeline {
                 }
                 """
 
-                sh """
-                curl -X POST "${webhookUrl}" \
+                sh '''
+                curl -X POST "'"${webhookUrl}"'" \
                      -H "Content-Type: application/json" \
                      -H "X-Encrypted-Timestamp: $(date +%s)" \
-                     -H "X-Payload-Checksum: $(echo -n '${payload}' | sha256sum | awk '{print $1}')" \
-                     -d '${payload}'
-                """
+                     -H "X-Payload-Checksum: $(echo -n '"${payload}"' | sha256sum | awk '{print $1}')" \
+                     -d '"${payload}"'
+                '''
             }
         }
 
