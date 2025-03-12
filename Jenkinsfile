@@ -43,13 +43,15 @@ pipeline {
                 def jsonApiUrl = "${jenkinsUrl}/job/${jobName}/${buildNumber}/api/json"
                 def webhookUrl = "https://6451-2409-40c2-115f-95f5-45da-9eeb-7cc7-5618.ngrok-free.app/jenkins-metadata"
 
+                if (!webhookUrl?.trim()) {
+                    error("Webhook URL is missing or invalid")
+                }
+
                 def wfapiResponse = sh(script: "curl -s ${apiUrl}", returnStdout: true).trim()
                 def jsonApiResponse = sh(script: "curl -s ${jsonApiUrl}", returnStdout: true).trim()
 
-                // Filter out the FlowGraphAction before sending
                 def parsedJson = readJSON text: jsonApiResponse
                 parsedJson.actions = parsedJson.actions.findAll { it._class != "org.jenkinsci.plugins.workflow.job.views.FlowGraphAction" }
-
                 def cleanedJsonApiResponse = writeJSON returnText: true, json: parsedJson
 
                 def payload = """
