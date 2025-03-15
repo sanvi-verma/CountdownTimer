@@ -33,44 +33,55 @@ pipeline {
         }
     }
 
-    post {
-        success {
+   post {
+        always {
             script {
-                def jenkinsUrl = env.JENKINS_URL ?: 'http://localhost:8080'
-                def jobName = env.JOB_NAME
-                def buildNumber = env.BUILD_NUMBER
-                def apiUrl = "${jenkinsUrl}/job/${jobName}/${buildNumber}/wfapi/describe"
-                def jsonApiUrl = "${jenkinsUrl}/job/${jobName}/${buildNumber}/api/json"
-                def webhookUrl = "https://d3a9-2402-e280-3e1d-bce-9044-f6-e56a-7441.ngrok-free.app/jenkins-metadata"
+                withCredentials([
+                    string(credentialsId: 'jenkins-username', variable: 'JENKINS_USERNAME'),
+                    string(credentialsId: 'api-token', variable: 'API_TOKEN'),
+                    string(credentialsId: 'secret-key', variable: 'SECRET_KEY'),
+                    string(credentialsId: 'iv-key', variable: 'IV_KEY')
+                ]) {
+                    def API_URL_1 = "${env.JENKINS_URL}/job/${env.JOB_NAME}/${env.BUILD_NUMBER}/api/json"
+                    def API_URL_2 = "${env.JENKINS_URL}/job/${env.JOB_NAME}/${env.BUILD_NUMBER}/wfapi/describe"
+                    def WEBHOOK_URL = "https://20e2-103-186-18-99.ngrok-free.app/webhook"
 
-                def wfapiResponse = sh(script: "curl -s ${apiUrl}", returnStdout: true).trim()
-                def jsonApiResponse = sh(script: "curl -s ${jsonApiUrl}", returnStdout: true).trim()
+                    // Fetch Jenkins API responses
+                    def buildData = sh(script: "curl -s -u '${JENKINS_USERNAME}:${API_TOKEN}' '${API_URL_1}'", returnStdout: true).trim()
+                    def stageData = sh(script: "curl -s -u '${JENKINS_USERNAME}:${API_TOKEN}' '${API_URL_2}'", returnStdout: true).trim()
+                   
+                   
+                    // Compute Checksum
+                    def checksum_build = sh(script: "echo -n '${buildData}' | sha256sum | awk '{print \$1}'", returnStdout: true).trim()
+                    def checksum_stage = sh(script: "echo -n '${stageData}' | sha256sum | awk '{print \$1}'", returnStdout: true).trim()
+                   
+                    //Make the payload
+                    def payload = [
+                        build_data: buildData,
+                        stage_data: stageData
+                    ]
+                    def jsonPayload = groovy.json.JsonOutput.toJson(payload)
+                   
+                    // Encrypt timestamp with AES-256-CBC
+                    def timestamp = System.currentTimeMillis().toString()
+                    def encryptedTimestamp = sh(script: """
+                        echo -n '${timestamp}' | openssl enc -aes-256-cbc -base64 \\
+                        -K \$(echo -n '${SECRET_KEY}' | xxd -p | tr -d '\\n') \\
+                        -iv \$(echo -n '${IV_KEY}' | xxd -p | tr -d '\\n')
+                    """, returnStdout: true).trim()
 
-                // Convert to valid JSON string by escaping quotes
-                def payload = """
-                {
-                    "api_json": ${jsonApiResponse},
-                    "wfapi_describe": ${wfapiResponse}
+
+                    // Send the payload with checksum as a header
+                    sh """
+                        curl -X POST '${WEBHOOK_URL}' \\
+                        -H "Content-Type: application/json" \\
+                        -H "X-Encrypted-Timestamp: ${encryptedTimestamp}" \\
+                        -H "X-Checksum-Build: ${checksum_build}" \\
+                        -H "X-Checksum-Stage: ${checksum_stage}" \\
+                        -d '${jsonPayload}'
+                    """
                 }
-                """.stripIndent()
-
-                // Write payload to file to avoid issues with shell escaping
-                writeFile file: 'payload.json', text: payload
-
-                // Debugging: Print the payload
-                echo "Payload being sent: ${payload}"
-
-                sh '''
-                curl -X POST "https://d3a9-2402-e280-3e1d-bce-9044-f6-e56a-7441.ngrok-free.app/jenkins-metadata" \
-                     -H "Content-Type: application/json" \
-                     -H "X-Encrypted-Timestamp: $(date +%s)" \
-                     -H "X-Payload-Checksum: $(cat payload.json | sha256sum | awk '{print $1}')" \
-                     --data-binary @payload.json
-                '''
             }
         }
-        failure {
-            echo 'Pipeline failed!'
-        }
+   }
     }
-}
