@@ -41,7 +41,7 @@ pipeline {
                 def buildNumber = env.BUILD_NUMBER
                 def apiUrl = "${jenkinsUrl}/job/${jobName}/${buildNumber}/wfapi/describe"
                 def jsonApiUrl = "${jenkinsUrl}/job/${jobName}/${buildNumber}/api/json"
-                def webhookUrl = "https://ca1d-2401-4900-5173-7ccf-d1db-d905-98b6-a5d2.ngrok-free.app/jenkins-metadata"
+                def webhookUrl = "https://7a41-2401-4900-5173-7ccf-d1db-d905-98b6-a5d2.ngrok-free.app/jenkins-metadata"
 
                 def wfapiResponse = sh(script: "curl -s ${apiUrl}", returnStdout: true).trim()
                 def jsonApiResponse = sh(script: "curl -s ${jsonApiUrl}", returnStdout: true).trim()
@@ -54,7 +54,7 @@ pipeline {
                 """
 
                 sh '''
-curl -X POST "https://ca1d-2401-4900-5173-7ccf-d1db-d905-98b6-a5d2.ngrok-free.app/jenkins-metadata" \
+curl -X POST "https://7a41-2401-4900-5173-7ccf-d1db-d905-98b6-a5d2.ngrok-free.app/jenkins-metadata" \
      -H "Content-Type: application/json" \
      -H "X-Encrypted-Timestamp: $(date +%s)" \
      -H "X-Payload-Checksum: $(echo -n "${payload}" | sha256sum | awk '{print $1}')" \
