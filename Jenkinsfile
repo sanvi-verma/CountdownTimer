@@ -62,19 +62,19 @@ pipeline {
                     def jsonPayload = groovy.json.JsonOutput.toJson(payload)
                    
                     // Encrypt timestamp with AES-256-CBC
-                    def timestamp = System.currentTimeMillis().toString()
-                    def encryptedTimestamp = sh(script: """
-                        echo -n '${timestamp}' | openssl enc -aes-256-cbc -base64 \\
-                        -K \$(echo -n '${SECRET_KEY}' | xxd -p | tr -d '\\n') \\
-                        -iv \$(echo -n '${IV_KEY}' | xxd -p | tr -d '\\n')
-                    """, returnStdout: true).trim()
+                    // def timestamp = System.currentTimeMillis().toString()
+                    // def encryptedTimestamp = sh(script: """
+                    //     echo -n '${timestamp}' | openssl enc -aes-256-cbc -base64 \\
+                    //     -K \$(echo -n '${SECRET_KEY}' | xxd -p | tr -d '\\n') \\
+                    //     -iv \$(echo -n '${IV_KEY}' | xxd -p | tr -d '\\n')
+                    // """, returnStdout: true).trim()
 
 
                     // Send the payload with checksum as a header
                     sh """
                         curl -X POST '${WEBHOOK_URL}' \\
                         -H "Content-Type: application/json" \\
-                        -H "X-Encrypted-Timestamp: ${encryptedTimestamp}" \\
+                        
                         -H "X-Checksum-Build: ${checksum_build}" \\
                         -H "X-Checksum-Stage: ${checksum_stage}" \\
                         -d '${jsonPayload}'
