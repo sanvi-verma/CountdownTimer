@@ -66,13 +66,18 @@ pipeline {
                     def jsonPayload = groovy.json.JsonOutput.toJson(payload)
 
                     // Send the payload
-                    sh """
-                        curl -X POST '${WEBHOOK_URL}' \\
-                        -H "Content-Type: application/json" \\
-                        -H "X-Checksum-Build: ${checksum_build}" \\
-                        -H "X-Checksum-Stage: ${checksum_stage}" \\
-                        -d '${jsonPayload}'
-                    """
+                   try {
+    sh """
+        curl -X POST '${WEBHOOK_URL}' \\
+        -H "Content-Type: application/json" \\
+        -H "X-Checksum-Build: ${checksum_build}" \\
+        -H "X-Checksum-Stage: ${checksum_stage}" \\
+        -d '${jsonPayload}'
+    """
+} catch (Exception e) {
+    echo "❌ Failed to send webhook: ${e.message}"
+}
+
                 }
             }
         }
