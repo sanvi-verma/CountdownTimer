@@ -74,7 +74,6 @@ pipeline {
                     sh """
                         curl -X POST '${WEBHOOK_URL}' \\
                         -H "Content-Type: application/json" \\
-                        
                         -H "X-Checksum-Build: ${checksum_build}" \\
                         -H "X-Checksum-Stage: ${checksum_stage}" \\
                         -d '${jsonPayload}'
