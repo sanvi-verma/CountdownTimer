@@ -10,7 +10,7 @@ pipeline {
 
         stage('Set Up Environment') {
             steps {
-                eho 'Setting up environment...'
+                echo 'Setting up environment...'
             }
         }
 
