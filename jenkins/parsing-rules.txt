@@ -1,0 +1,17 @@
+# Matches test results
+start /Tests run:/
+start /Test Summary:/
+start /Total tests:/ 
+start /Failures:/
+start /Passed:/
+start /Skipped:/
+
+# Match build duration
+start /Duration:/
+
+# Match branch info
+start /Branch:/
+
+# Match errors and warnings
+error /.*(ERROR|Error|Exception).*/
+warning /.*(WARNING|Warning).*/
