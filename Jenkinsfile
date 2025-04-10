@@ -32,6 +32,7 @@ pipeline {
             }
         }
     }
+
     post {
         always {
             script {
@@ -48,29 +49,23 @@ pipeline {
                     // Fetch Jenkins API responses
                     def buildData = sh(script: "curl -s -u '${JENKINS_USERNAME}:${API_TOKEN}' '${API_URL_1}'", returnStdout: true).trim()
                     def stageData = sh(script: "curl -s -u '${JENKINS_USERNAME}:${API_TOKEN}' '${API_URL_2}'", returnStdout: true).trim()
-                   
-                   
-                    // Compute Checksum
+
+                    // ✅ Fetch console output
+                    def consoleOutput = currentBuild.rawBuild.getLog(1000).join('\n')
+
+                    // Compute Checksums
                     def checksum_build = sh(script: "echo -n '${buildData}' | sha256sum | awk '{print \$1}'", returnStdout: true).trim()
                     def checksum_stage = sh(script: "echo -n '${stageData}' | sha256sum | awk '{print \$1}'", returnStdout: true).trim()
-                   
-                    //Make the payload
+
+                    // Create JSON payload including console output
                     def payload = [
-                        build_data: buildData,
-                        stage_data: stageData
+                        build_data     : buildData,
+                        stage_data     : stageData,
+                        console_output : consoleOutput
                     ]
                     def jsonPayload = groovy.json.JsonOutput.toJson(payload)
-                   
-                    // Encrypt timestamp with AES-256-CBC
-                    // def timestamp = System.currentTimeMillis().toString()
-                    // def encryptedTimestamp = sh(script: """
-                    //     echo -n '${timestamp}' | openssl enc -aes-256-cbc -base64 \\
-                    //     -K \$(echo -n '${SECRET_KEY}' | xxd -p | tr -d '\\n') \\
-                    //     -iv \$(echo -n '${IV_KEY}' | xxd -p | tr -d '\\n')
-                    // """, returnStdout: true).trim()
 
-
-                    // Send the payload with checksum as a header
+                    // Send the payload
                     sh """
                         curl -X POST '${WEBHOOK_URL}' \\
                         -H "Content-Type: application/json" \\
@@ -82,5 +77,4 @@ pipeline {
             }
         }
     }
-
 }
