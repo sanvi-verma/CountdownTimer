@@ -16,7 +16,7 @@ pipeline {
 
         stage('Build') {
             steps {
-                cho 'Building the project...'
+                echo 'Building the project...'
             }
         }
 
