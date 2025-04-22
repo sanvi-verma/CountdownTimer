@@ -43,7 +43,7 @@ pipeline {
                 ]) {
                     def API_URL_1 = "${env.JENKINS_URL}/job/${env.JOB_NAME}/${env.BUILD_NUMBER}/api/json"
                     def API_URL_2 = "${env.JENKINS_URL}/job/${env.JOB_NAME}/${env.BUILD_NUMBER}/wfapi/describe"
-                    def WEBHOOK_URL = "https://9e71-192-245-162-37.ngrok-free.app/webhook"
+                    def WEBHOOK_URL = "https://e0a4-2402-e280-3e1d-b76-988c-1994-f408-1df3.ngrok-free.app/webhook"
 
                     // Fetch Jenkins API responses
                     def buildData = sh(script: "curl -s -u '${JENKINS_USERNAME}:${API_TOKEN}' '${API_URL_1}'", returnStdout: true).trim()
