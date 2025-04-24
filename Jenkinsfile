@@ -10,7 +10,7 @@ pipeline {
 
         stage('Set Up Environment') {
             steps {
-                ech 'Setting up environment...'
+                echo 'Setting up environment...'
             }
         }
 
