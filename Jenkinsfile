@@ -51,11 +51,11 @@ pipeline {
    
                     def timestamp = System.currentTimeMillis().toString()
    
-                    def encryptedTimestamp = sh(script: """
-                       echo -n '${timestamp}' | openssl enc -aes-256-cbc -base64 \\
-                       -K \$(echo -n '${SECRET_KEY}' | xxd -p | tr -d '\\n') \\
-                        -iv \$(echo -n '${IV_KEY}' | xxd -p | tr -d '\\n')
-                    """, returnStdout: true).trim()
+                   // def encryptedTimestamp = sh(script: """
+                       //echo -n '${timestamp}' | openssl enc -aes-256-cbc -base64 \\
+                       //-K \$(echo -n '${SECRET_KEY}' | xxd -p | tr -d '\\n') \\
+                       // -iv \$(echo -n '${IV_KEY}' | xxd -p | tr -d '\\n')
+                   // """, returnStdout: true).trim()
    
                     // Parse stage data to get nodeIds (but don't keep parsed objects)
                     def stageIds = sh(
