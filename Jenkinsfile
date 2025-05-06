@@ -89,7 +89,7 @@ def webhookUrl = 'https://1d41-192-245-162-37.ngrok-free.app/web'
                     sh """
                         curl -X POST '${webhookUrl}' \\
                         -H "Content-Type: application/json" \\
-                        -H "X-Encrypted-Timestamp: ${encryptedTimestamp}" \\
+                    
                         -H "X-Checksum: ${checksum}" \\
                         -d '${payload}'
                     """
