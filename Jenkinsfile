@@ -2,7 +2,7 @@ pipeline {
     agent any
 environment
     {
-        WEBHOOK_URL= ' https://c454-2402-e280-3e1d-b76-f1cc-34a4-5dc4-ce6b.ngrok-free.app/webhook'
+        WEBHOOK_URL = 'https://c454-2402-e280-3e1d-b76-f1cc-34a4-5dc4-ce6b.ngrok-free.app/webhook'
     }
     stages {
         stage('Clone Repository') {
