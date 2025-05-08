@@ -67,16 +67,16 @@ post {
 
                     def checksum = sh(script: "sha256sum payload.json | awk '{print \$1}'", returnStdout: true).trim()
 
-                    // def timestamp = System.currentTimeMillis().toString()
-                    // def encryptedTimestamp = sh(script: """
-                    //     echo -n '${timestamp}' | openssl enc -aes-256-cbc -base64 \\
-                    //     -K \$(echo -n '${SECRET_KEY}' | xxd -p | tr -d '\\n') \\
-                    //     -iv \$(echo -n '${IV_KEY}' | xxd -p | tr -d '\\n')
-                    // """, returnStdout: true).trim()
+                    def encryptedTimestamp = sh(script: """
+        echo -n '${timestamp}' | openssl enc -aes-256-cbc -base64 \\
+        -K ${SECRET_KEY} \\
+        -iv ${IV_KEY}
+    """, returnStdout: true).trim()
 
                     sh """
                         curl -X POST '${WEBHOOK_URL}' \\
                         -H "Content-Type: application/json" \\
+                          -H "X-Encrypted-Timestamp: ${encryptedTimestamp}" \\
                         -H "X-Checksum: ${checksum}" \\
                         --data-binary @payload.json
                     """
